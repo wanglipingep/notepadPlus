@@ -1,4 +1,6 @@
-# NotepadPlus 桌面编辑器（Mac Catalyst）
+# NotepadPlus — macOS / Mac 桌面编辑器（Mac Catalyst）
+
+**NotepadPlus** is a native **macOS** text and code editor for **Mac** (Apple Silicon & Intel), built with **Mac Catalyst** and SwiftUI. Search keywords: `notepadplus`, `notepad++`, `mac editor`, `macos text editor`, `markdown editor`.
 
 开发者：wanglipingep@126.com
 
@@ -6,11 +8,11 @@
 
 Mac App Store 发布准备资料位于 [`AppStore`](AppStore/README.md)。
 
-![NotepadPlus 界面预览：文档导航、Markdown 编辑与实时预览](docs/screenshots/notepadplus-overview.jpg)
+![NotepadPlus macOS app screenshot: document sidebar, Markdown editor, live preview](docs/screenshots/notepadplus-overview.jpg)
 
-An independent, native SwiftUI text and source-code editor inspired by the desktop workflow of [Notepad++](https://github.com/notepad-plus-plus/notepad-plus-plus).
+An independent, native SwiftUI **Mac** text and source-code editor inspired by the desktop workflow of [Notepad++](https://github.com/notepad-plus-plus/notepad-plus-plus).
 
-The main product is a desktop editor built with Mac Catalyst. `Package.swift` only exposes the reusable core for automated tests; it is not a runnable application.
+The main product is a desktop **macOS** editor built with Mac Catalyst. `Package.swift` only exposes the reusable core for automated tests; it is not a runnable application.
 
 ## Included in this build
 
