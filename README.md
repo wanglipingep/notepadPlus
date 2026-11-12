@@ -6,6 +6,8 @@
 
 Mac App Store 发布准备资料位于 [`AppStore`](AppStore/README.md)。
 
+![NotepadPlus 界面预览：文档导航、Markdown 编辑与实时预览](docs/screenshots/notepadplus-overview.jpg)
+
 An independent, native SwiftUI text and source-code editor inspired by the desktop workflow of [Notepad++](https://github.com/notepad-plus-plus/notepad-plus-plus).
 
 The main product is a desktop editor built with Mac Catalyst. `Package.swift` only exposes the reusable core for automated tests; it is not a runnable application.
