@@ -1,0 +1,10 @@
+Executable=/private/tmp/notepadplus-package.O48VVU/volume/NotepadPlus.app/Contents/MacOS/NotepadPlus
+Identifier=com.wanglp.notepadplus
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=16567 flags=0x10002(adhoc,runtime) hashes=507+7 location=embedded
+Signature=adhoc
+Info.plist entries=40
+TeamIdentifier=not set
+Runtime Version=26.5.0
+Sealed Resources version=2 rules=13 files=4
+# designated => cdhash H"875a0176c271b51ce1c7917c3d8528c2cf913b3d" or cdhash H"11a3624e2f75b71fdb61b083b43d77d3849cf838"
