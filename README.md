@@ -2,6 +2,8 @@
 
 开发者：wanglipingep@126.com
 
+官网 / 宣传页：[https://wanglp.cn:8081/](https://wanglp.cn:8081/)
+
 Mac App Store 发布准备资料位于 [`AppStore`](AppStore/README.md)。
 
 An independent, native SwiftUI text and source-code editor inspired by the desktop workflow of [Notepad++](https://github.com/notepad-plus-plus/notepad-plus-plus).
