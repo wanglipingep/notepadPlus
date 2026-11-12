@@ -1,0 +1,395 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B00000000000000000000001 /* NotepadPlusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000001 /* NotepadPlusApp.swift */; };
+		B00000000000000000000002 /* EditorDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000002 /* EditorDocument.swift */; };
+		B00000000000000000000003 /* EditorPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000003 /* EditorPreferences.swift */; };
+		B00000000000000000000004 /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000004 /* WorkspaceStore.swift */; };
+		B00000000000000000000005 /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000005 /* SyntaxHighlighter.swift */; };
+		B00000000000000000000006 /* CodeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000006 /* CodeEditorView.swift */; };
+		B00000000000000000000007 /* FindReplaceBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000007 /* FindReplaceBar.swift */; };
+		B00000000000000000000008 /* EditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000008 /* EditorScreen.swift */; };
+		B00000000000000000000009 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000009 /* SidebarView.swift */; };
+		B0000000000000000000000A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0000000000000000000000A /* SettingsView.swift */; };
+		B0000000000000000000000B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0000000000000000000000B /* RootView.swift */; };
+		B0000000000000000000000C /* EditorCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0000000000000000000000C /* EditorCore.swift */; };
+		B0000000000000000000000D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0000000000000000000000D /* Assets.xcassets */; };
+		B0000000000000000000000E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000011 /* PrivacyInfo.xcprivacy */; };
+		B0000000000000000000000F /* KeyboardShortcutMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000012 /* KeyboardShortcutMonitor.swift */; };
+		B00000000000000000000010 /* CHANGELOG.md in Resources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000013 /* CHANGELOG.md */; };
+		B00000000000000000000014 /* JSONFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000014 /* JSONFeatures.swift */; };
+		B00000000000000000000015 /* MarkdownPreviewCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000015 /* MarkdownPreviewCore.swift */; };
+		B00000000000000000000016 /* GroupHierarchy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000016 /* GroupHierarchy.swift */; };
+		B00000000000000000000017 /* HelperToolsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000017 /* HelperToolsViews.swift */; };
+		B00000000000000000000018 /* SystemSnippetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000018 /* SystemSnippetBridge.swift */; };
+		B00000000000000000000019 /* WorkspaceDataMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000019 /* WorkspaceDataMigration.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		C00000000000000000000001 /* NotepadPlusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotepadPlusApp.swift; sourceTree = "<group>"; };
+		C00000000000000000000002 /* EditorDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDocument.swift; sourceTree = "<group>"; };
+		C00000000000000000000003 /* EditorPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPreferences.swift; sourceTree = "<group>"; };
+		C00000000000000000000004 /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
+		C00000000000000000000005 /* SyntaxHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxHighlighter.swift; sourceTree = "<group>"; };
+		C00000000000000000000006 /* CodeEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeEditorView.swift; sourceTree = "<group>"; };
+		C00000000000000000000007 /* FindReplaceBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindReplaceBar.swift; sourceTree = "<group>"; };
+		C00000000000000000000008 /* EditorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorScreen.swift; sourceTree = "<group>"; };
+		C00000000000000000000009 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		C0000000000000000000000A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C0000000000000000000000B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		C0000000000000000000000C /* EditorCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorCore.swift; sourceTree = "<group>"; };
+		C0000000000000000000000D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C0000000000000000000000E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C0000000000000000000000F /* NotepadPlus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotepadPlus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C00000000000000000000010 /* NotepadPlus.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotepadPlus.entitlements; sourceTree = "<group>"; };
+		C00000000000000000000011 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		C00000000000000000000012 /* KeyboardShortcutMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutMonitor.swift; sourceTree = "<group>"; };
+		C00000000000000000000013 /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CHANGELOG.md; sourceTree = "<group>"; };
+		C00000000000000000000014 /* JSONFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONFeatures.swift; sourceTree = "<group>"; };
+		C00000000000000000000015 /* MarkdownPreviewCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewCore.swift; sourceTree = "<group>"; };
+		C00000000000000000000016 /* GroupHierarchy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupHierarchy.swift; sourceTree = "<group>"; };
+		C00000000000000000000017 /* HelperToolsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperToolsViews.swift; sourceTree = "<group>"; };
+		C00000000000000000000018 /* SystemSnippetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemSnippetBridge.swift; sourceTree = "<group>"; };
+		C00000000000000000000019 /* WorkspaceDataMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceDataMigration.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D00000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		E00000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				E00000000000000000000002 /* NotepadPlus */,
+				E00000000000000000000008 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E00000000000000000000002 /* NotepadPlus */ = {
+			isa = PBXGroup;
+			children = (
+				E00000000000000000000003 /* App */,
+				E00000000000000000000004 /* Models */,
+				E00000000000000000000005 /* Services */,
+				E00000000000000000000006 /* Views */,
+				E00000000000000000000007 /* SharedCore */,
+				C0000000000000000000000D /* Assets.xcassets */,
+				C0000000000000000000000E /* Info.plist */,
+				C00000000000000000000010 /* NotepadPlus.entitlements */,
+				C00000000000000000000011 /* PrivacyInfo.xcprivacy */,
+				C00000000000000000000013 /* CHANGELOG.md */,
+			);
+			path = NotepadPlus;
+			sourceTree = "<group>";
+		};
+		E00000000000000000000003 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000001 /* NotepadPlusApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		E00000000000000000000004 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000002 /* EditorDocument.swift */,
+				C00000000000000000000003 /* EditorPreferences.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		E00000000000000000000005 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000004 /* WorkspaceStore.swift */,
+				C00000000000000000000005 /* SyntaxHighlighter.swift */,
+				C00000000000000000000012 /* KeyboardShortcutMonitor.swift */,
+				C00000000000000000000018 /* SystemSnippetBridge.swift */,
+				C00000000000000000000019 /* WorkspaceDataMigration.swift */,
+				C00000000000000000000014 /* JSONFeatures.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		E00000000000000000000006 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000006 /* CodeEditorView.swift */,
+				C00000000000000000000007 /* FindReplaceBar.swift */,
+				C00000000000000000000008 /* EditorScreen.swift */,
+				C00000000000000000000009 /* SidebarView.swift */,
+				C0000000000000000000000A /* SettingsView.swift */,
+				C0000000000000000000000B /* RootView.swift */,
+				C00000000000000000000017 /* HelperToolsViews.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		E00000000000000000000007 /* SharedCore */ = {
+			isa = PBXGroup;
+			children = (
+				C0000000000000000000000C /* EditorCore.swift */,
+				C00000000000000000000016 /* GroupHierarchy.swift */,
+				C00000000000000000000015 /* MarkdownPreviewCore.swift */,
+			);
+			path = SharedCore;
+			sourceTree = "<group>";
+		};
+		E00000000000000000000008 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C0000000000000000000000F /* NotepadPlus.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00000000000000000000001 /* NotepadPlus */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F00000000000000000000003 /* Build configuration list for PBXNativeTarget "NotepadPlus" */;
+			buildPhases = (
+				D00000000000000000000002 /* Sources */,
+				D00000000000000000000001 /* Frameworks */,
+				D00000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NotepadPlus;
+			productName = NotepadPlus;
+			productReference = C0000000000000000000000F /* NotepadPlus.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00000000000000000000002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					A00000000000000000000001 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+				};
+			};
+			buildConfigurationList = F00000000000000000000002 /* Build configuration list for PBXProject "NotepadPlus" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				"zh-Hans",
+				Base,
+			);
+			mainGroup = E00000000000000000000001;
+			productRefGroup = E00000000000000000000008 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A00000000000000000000001 /* NotepadPlus */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D00000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0000000000000000000000D /* Assets.xcassets in Resources */,
+				B0000000000000000000000E /* PrivacyInfo.xcprivacy in Resources */,
+				B00000000000000000000010 /* CHANGELOG.md in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D00000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000001 /* NotepadPlusApp.swift in Sources */,
+				B00000000000000000000002 /* EditorDocument.swift in Sources */,
+				B00000000000000000000003 /* EditorPreferences.swift in Sources */,
+				B00000000000000000000004 /* WorkspaceStore.swift in Sources */,
+				B00000000000000000000005 /* SyntaxHighlighter.swift in Sources */,
+				B00000000000000000000006 /* CodeEditorView.swift in Sources */,
+				B00000000000000000000007 /* FindReplaceBar.swift in Sources */,
+				B00000000000000000000008 /* EditorScreen.swift in Sources */,
+				B00000000000000000000009 /* SidebarView.swift in Sources */,
+				B0000000000000000000000A /* SettingsView.swift in Sources */,
+				B0000000000000000000000B /* RootView.swift in Sources */,
+				B0000000000000000000000C /* EditorCore.swift in Sources */,
+				B00000000000000000000016 /* GroupHierarchy.swift in Sources */,
+				B00000000000000000000015 /* MarkdownPreviewCore.swift in Sources */,
+				B0000000000000000000000F /* KeyboardShortcutMonitor.swift in Sources */,
+				B00000000000000000000014 /* JSONFeatures.swift in Sources */,
+				B00000000000000000000017 /* HelperToolsViews.swift in Sources */,
+				B00000000000000000000018 /* SystemSnippetBridge.swift in Sources */,
+				B00000000000000000000019 /* WorkspaceDataMigration.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F00000000000000000000004 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_LANGUAGE = "zh-Hans";
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F00000000000000000000005 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_LANGUAGE = "zh-Hans";
+				ENABLE_NS_ASSERTIONS = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		F00000000000000000000006 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = NotepadPlus/NotepadPlus.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
+				CURRENT_PROJECT_VERSION = 25;
+				DEVELOPMENT_ASSET_PATHS = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+					ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				EXTRACT_APP_INTENTS_METADATA = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NotepadPlus/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.9.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wanglp.notepadplus;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F00000000000000000000007 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = NotepadPlus/NotepadPlus.entitlements;
+				"CODE_SIGN_STYLE[sdk=macosx*]" = Automatic;
+				CURRENT_PROJECT_VERSION = 25;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = XDB37FJW2A;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+					ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				EXTRACT_APP_INTENTS_METADATA = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NotepadPlus/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.9.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wanglp.notepadplus;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F00000000000000000000002 /* Build configuration list for PBXProject "NotepadPlus" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F00000000000000000000004 /* Debug */,
+				F00000000000000000000005 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F00000000000000000000003 /* Build configuration list for PBXNativeTarget "NotepadPlus" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F00000000000000000000006 /* Debug */,
+				F00000000000000000000007 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A00000000000000000000002 /* Project object */;
+}
