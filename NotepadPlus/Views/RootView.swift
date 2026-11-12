@@ -162,7 +162,17 @@ struct RootView: View {
                 fileSearchFloatingOverlay
                 snippetsFloatingOverlay
                 clipboardFloatingOverlay
+                settingsFloatingOverlay
             }
+            #if targetEnvironment(macCatalyst)
+            .background(DetailOriginReporter())
+            .onPreferenceChange(DetailOriginKey.self) { TitlebarQuoteLayout.setDetailMinX($0) }
+            .onChange(of: columnVisibility) { _, visibility in
+                if visibility == .detailOnly {
+                    TitlebarQuoteLayout.setDetailMinX(0)
+                }
+            }
+            #endif
             .toolbar(.hidden, for: .navigationBar)
         }
         .navigationSplitViewStyle(.balanced)
@@ -230,9 +240,6 @@ struct RootView: View {
 
     private var rootWithSheets: some View {
         rootWithImporters
-            .sheet(isPresented: $isSettingsPresented) {
-                SettingsView(preferences: preferences)
-            }
             .sheet(isPresented: $isShortcutManagerPresented) {
                 NavigationStack {
                     ShortcutManagerView(preferences: preferences)
@@ -864,6 +871,22 @@ struct RootView: View {
     }
 
     @ViewBuilder
+    private var settingsFloatingOverlay: some View {
+        if isSettingsPresented {
+            FloatingPanelHost(
+                isPresented: $isSettingsPresented,
+                title: preferences.tr("偏好设置", "Preferences"),
+                initialSize: CGSize(width: 980, height: 720)
+            ) {
+                SettingsView(preferences: preferences) {
+                    isSettingsPresented = false
+                }
+            }
+            .zIndex(50)
+        }
+    }
+
+    @ViewBuilder
     private var fileSearchFloatingOverlay: some View {
         if isFileSearchPresented {
             FloatingPanelHost(
@@ -1359,7 +1382,7 @@ private struct SignatureTickerView: View {
     @ObservedObject var preferences: EditorPreferences
 
     var body: some View {
-        let quotes = preferences.signatureQuotes.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let quotes = preferences.activeSignatureTexts
         if preferences.signatureEnabled, !quotes.isEmpty {
             Group {
                 switch preferences.signatureStyle {
@@ -1367,16 +1390,104 @@ private struct SignatureTickerView: View {
                     SignatureMarqueeView(quotes: quotes, preferences: preferences)
                 case .blinds:
                     SignatureBlindsView(quotes: quotes, preferences: preferences)
+                case .typewriter:
+                    SignatureTypewriterView(quotes: quotes, preferences: preferences)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24, alignment: .center)
+            .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24, alignment: .leading)
         }
     }
 }
 
+/// Shared helpers for title-bar signature playback — every style must finish
+/// showing the full quote before advancing to the next one.
+private enum SignaturePlayback {
+    /// Lines for blinds: prefer author newlines; otherwise chunk long prose.
+    static func displayLines(for quote: String) -> [String] {
+        let raw = quote
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if raw.isEmpty { return [] }
+        if raw.count > 1 { return raw }
+        return chunkProse(raw[0], softLimit: 32)
+    }
+
+    /// Flatten multiline quotes into one marquee / typewriter string.
+    static func continuousText(for quote: String) -> String {
+        quote
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "  ")
+    }
+
+    static func chunkProse(_ text: String, softLimit: Int) -> [String] {
+        guard text.count > softLimit else { return [text] }
+        let breakers: Set<Character> = ["。", "！", "？", "；", "!", "?", ";", "，", ",", "、"]
+        var chunks: [String] = []
+        var current = ""
+        for ch in text {
+            current.append(ch)
+            let shouldBreak = breakers.contains(ch) && current.count >= max(12, softLimit / 2)
+            let forced = current.count >= softLimit + 8
+            if shouldBreak || forced {
+                let piece = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !piece.isEmpty { chunks.append(piece) }
+                current = ""
+            }
+        }
+        let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty { chunks.append(tail) }
+        return chunks.isEmpty ? [text] : chunks
+    }
+
+    static func measureWidth(_ text: String, font: UIFont) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    static func uiFont(name: String, size: CGFloat) -> UIFont {
+        UIFont(name: name, size: size) ?? .systemFont(ofSize: size)
+    }
+}
+
 #if targetEnvironment(macCatalyst)
-/// The probe belongs to the content window, so each window gets its own toolbar
-/// and every live resize updates the item's ideal width in UIKit coordinates.
+
+enum TitlebarQuoteLayout {
+    /// Leading X of the detail column in window coordinates; 0 = unknown/hidden sidebar.
+    private(set) static var detailMinX: CGFloat = 0
+
+    static func setDetailMinX(_ raw: CGFloat) {
+        guard raw.isFinite, raw >= 0 else { return }
+        if raw < 80 || raw > 900 {
+            detailMinX = 0
+            return
+        }
+        detailMinX = raw
+    }
+}
+
+private struct DetailOriginKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct DetailOriginReporter: View {
+    var body: some View {
+        GeometryReader { geo in
+            let minX = geo.frame(in: .global).minX
+            Color.clear
+                .preference(key: DetailOriginKey.self, value: minX)
+                .onAppear { TitlebarQuoteLayout.setDetailMinX(minX) }
+                .onChange(of: minX) { _, value in TitlebarQuoteLayout.setDetailMinX(value) }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Hosts the quote inside the unified titlebar (fills the top chrome band).
 private struct TitlebarQuoteBridge: UIViewRepresentable {
     @ObservedObject var preferences: EditorPreferences
 
@@ -1421,6 +1532,7 @@ private final class TitlebarQuoteConfigurator: NSObject, NSToolbarDelegate {
             }
         }
     }
+
     private let quoteIdentifier = NSToolbarItem.Identifier("NotepadPlus.quote")
     private weak var scene: UIWindowScene?
     private var toolbar: NSToolbar?
@@ -1436,7 +1548,6 @@ private final class TitlebarQuoteConfigurator: NSObject, NSToolbarDelegate {
         pendingWindow = window
         guard !updateScheduled else { return }
         updateScheduled = true
-        // Split-column frames and scene geometry settle after the content layout.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.updateScheduled = false
@@ -1447,29 +1558,34 @@ private final class TitlebarQuoteConfigurator: NSObject, NSToolbarDelegate {
     private func update(window: UIWindow) {
         guard let scene = window.windowScene, let titlebar = scene.titlebar,
               preferences != nil else { return }
-        // Native sidebar chrome reserves the titlebar above the primary column.
-        // Our sidebar already draws its own header/background, so opt out of
-        // that chrome and let the quote start next to the window controls.
         window.backgroundColor = EditorChrome.uiBackground
         if let root = window.rootViewController {
             root.view.backgroundColor = EditorChrome.uiBackground
             configureWindowChrome(in: root)
         }
-        // Catalyst's UIKit points can differ from the native titlebar's points.
+
         if self.scene !== scene {
             let nativeWidth = scene.effectiveGeometry.systemFrame.width
             coordinateScale = nativeWidth > 0 ? window.bounds.width / nativeWidth : 1
         }
-        // Catalyst's coordinate scale stays constant during resizing. Reusing
-        // it avoids combining a new UIKit width with a stale systemFrame.
-        let leadingInset = 88 * coordinateScale
-        itemWidth = max(120, window.bounds.width - leadingInset - 12 * coordinateScale)
-        if self.scene !== scene {
+
+        // Traffic-light clearance for a single leading toolbar item.
+        let trafficLights = 88 * coordinateScale
+        let trailing = 12 * coordinateScale
+        let uikitDetail = uiKitDetailMinX(in: window)
+        let detailMinX = uikitDetail > 0 ? uikitDetail : TitlebarQuoteLayout.detailMinX
+        // Internal pad only (no spacer item) — one-shot from detail edge, never accumulates.
+        let pad = detailMinX >= trafficLights + 40
+            ? max(0, detailMinX - trafficLights)
+            : 0
+        let nextWidth = max(120, window.bounds.width - trafficLights - trailing)
+
+        if self.scene !== scene || toolbar == nil {
             self.scene = scene
             hosting = nil
             container = nil
             toolbarItem = nil
-            let toolbar = NSToolbar(identifier: NSToolbar.Identifier("NotepadPlus.titlebar.\(scene.session.persistentIdentifier)"))
+            let toolbar = NSToolbar(identifier: NSToolbar.Identifier("NotepadPlus.titlebar.quoteOnly.\(scene.session.persistentIdentifier)"))
             toolbar.delegate = self
             toolbar.allowsUserCustomization = false
             toolbar.autosavesConfiguration = false
@@ -1481,11 +1597,48 @@ private final class TitlebarQuoteConfigurator: NSObject, NSToolbarDelegate {
             titlebar.separatorStyle = .none
             titlebar.toolbar = toolbar
         }
-        if let container, abs(container.preferredWidth - itemWidth) > 0.5 {
-            container.preferredWidth = itemWidth
-            // Ask the Catalyst bridge to remeasure after changing the view size.
-            toolbarItem?.uiView = container
+
+        itemWidth = nextWidth
+        if let container {
+            if abs(container.preferredWidth - itemWidth) > 0.5 {
+                container.preferredWidth = itemWidth
+                toolbarItem?.uiView = container
+            }
+            if abs(container.leadingPad - pad) > 0.75 {
+                container.leadingPad = pad
+            }
         }
+
+        let report = [
+            "detailMinX=\(Int(detailMinX))",
+            "pad=\(Int(pad))",
+            "traffic=\(Int(trafficLights))",
+            "quoteStart=\(Int(trafficLights + pad))",
+            "quoteWidth=\(Int(itemWidth))",
+            "window=\(Int(window.bounds.width))",
+            "scale=\(String(format: "%.3f", coordinateScale))"
+        ].joined(separator: " ")
+        try? report.write(toFile: "/tmp/notepadplus-titlebar-layout.txt", atomically: true, encoding: .utf8)
+    }
+
+    private func uiKitDetailMinX(in window: UIWindow) -> CGFloat {
+        guard let root = window.rootViewController,
+              let split = findSplitViewController(in: root),
+              !split.isCollapsed,
+              let detail = split.viewController(for: .secondary)?.viewIfLoaded
+                ?? split.viewController(for: .supplementary)?.viewIfLoaded
+        else { return 0 }
+        let x = detail.convert(CGPoint.zero, to: window).x
+        guard x.isFinite, x >= 80, x <= window.bounds.width * 0.55 else { return 0 }
+        return x
+    }
+
+    private func findSplitViewController(in controller: UIViewController) -> UISplitViewController? {
+        if let split = controller as? UISplitViewController { return split }
+        for child in controller.children {
+            if let found = findSplitViewController(in: child) { return found }
+        }
+        return controller.presentedViewController.flatMap(findSplitViewController(in:))
     }
 
     private func configureWindowChrome(in controller: UIViewController) {
@@ -1493,8 +1646,6 @@ private final class TitlebarQuoteConfigurator: NSObject, NSToolbarDelegate {
             if split.primaryBackgroundStyle != .none {
                 split.primaryBackgroundStyle = .none
             }
-            // Disabling native sidebar chrome leaves its titlebar region using
-            // the primary view's background. Match it to the rest of the toolbar.
             split.view.backgroundColor = EditorChrome.uiBackground
             split.viewController(for: .primary)?.viewIfLoaded?.backgroundColor = EditorChrome.uiBackground
         }
@@ -1533,12 +1684,14 @@ private final class TitlebarQuoteConfigurator: NSObject, NSToolbarDelegate {
         guard itemIdentifier == quoteIdentifier, let preferences else { return nil }
         let hosting = UIHostingController(rootView: TitlebarQuoteView(preferences: preferences))
         hosting.view.backgroundColor = .clear
-        let container = TitlebarQuoteContainerView(contentView: hosting.view, width: itemWidth)
+        let uikitDetail = pendingWindow.map(uiKitDetailMinX(in:)) ?? 0
+        let detailMinX = uikitDetail > 0 ? uikitDetail : TitlebarQuoteLayout.detailMinX
+        let trafficLights = 88 * coordinateScale
+        let pad = detailMinX >= trafficLights + 40 ? max(0, detailMinX - trafficLights) : 0
+        let container = TitlebarQuoteContainerView(contentView: hosting.view, width: itemWidth, leadingPad: pad)
         self.hosting = hosting
         self.container = container
         let item = NSUIViewToolbarItem(itemIdentifier: itemIdentifier, uiView: container)
-        // The quote is the only titlebar item; no separate app-name item
-        // reserves space before it.
         item.isNavigational = true
         item.isBordered = false
         item.visibilityPriority = .high
@@ -1557,14 +1710,27 @@ private final class TitlebarQuoteContainerView: UIView {
         }
     }
 
-    init(contentView: UIView, width: CGFloat) {
+    var leadingPad: CGFloat {
+        didSet {
+            guard abs(oldValue - leadingPad) > 0.5 else { return }
+            leadingConstraint?.constant = max(0, leadingPad)
+            setNeedsLayout()
+        }
+    }
+
+    private var leadingConstraint: NSLayoutConstraint?
+
+    init(contentView: UIView, width: CGFloat, leadingPad: CGFloat) {
         preferredWidth = width
+        self.leadingPad = leadingPad
         super.init(frame: CGRect(x: 0, y: 0, width: width, height: 28))
         backgroundColor = .clear
         contentView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(contentView)
+        let leading = contentView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: max(0, leadingPad))
+        leadingConstraint = leading
         NSLayoutConstraint.activate([
-            contentView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            leading,
             contentView.trailingAnchor.constraint(equalTo: trailingAnchor),
             contentView.topAnchor.constraint(equalTo: topAnchor),
             contentView.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -1584,90 +1750,276 @@ private struct TitlebarQuoteView: View {
 
     var body: some View {
         SignatureTickerView(preferences: preferences)
-            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 28, maxHeight: 28)
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 28, maxHeight: 28, alignment: .leading)
             .clipped()
     }
 }
 
 #endif
 
-/// Continuously moves the current quote from left to right across a filled track.
-/// A TimelineView keeps this independent of editor text updates and therefore
-/// inexpensive even while a large document is open.
+/// Reads each quote head→tail in the title bar, then advances.
+/// Long text starts with the beginning visible and scrolls until the ending
+/// is fully shown; short text stays centered for the dwell time.
 private struct SignatureMarqueeView: View {
     let quotes: [String]
     @ObservedObject var preferences: EditorPreferences
 
+    private struct Segment {
+        let text: String
+        let textWidth: CGFloat
+        let startHold: TimeInterval
+        let scrollDuration: TimeInterval
+        let endHold: TimeInterval
+
+        var duration: TimeInterval { startHold + scrollDuration + endHold }
+    }
+
     var body: some View {
         GeometryReader { proxy in
-            TimelineView(.periodic(from: Date(), by: 0.1)) { context in
-                let timestamp = context.date.timeIntervalSinceReferenceDate
-                let index = max(0, Int(timestamp / cycleDuration)) % quotes.count
-                let quote = quotes[index]
-                let displayText = "“\(quote)”"
-                let font = UIFont(name: preferences.signatureFontName, size: preferences.signatureFontSize)
-                    ?? .systemFont(ofSize: preferences.signatureFontSize)
-                let phase = (timestamp.truncatingRemainder(dividingBy: cycleDuration)) / cycleDuration
-                // Repeat the quote at a short fixed interval.  This keeps the
-                // ticker filled while it moves left-to-right instead of
-                // leaving a blank middle section between cycles.
-                let textWidth = ceil((displayText as NSString).size(withAttributes: [.font: font]).width)
-                let repeatGap: CGFloat = 48
-                let repeatPeriod = textWidth + repeatGap
-                HStack(spacing: repeatGap) {
-                    ForEach(0..<max(2, Int(ceil(proxy.size.width / repeatPeriod)) + 2), id: \.self) { copyIndex in
-                        Text(displayText)
-                            .font(Font(font))
-                            .frame(width: textWidth, alignment: .leading)
-                            .foregroundStyle(preferences.signatureColor)
-                            .lineLimit(1)
-                            .fixedSize()
-                            .accessibilityLabel(copyIndex == 0 ? "个性化签名：\(quote)" : "")
-                            .accessibilityHidden(copyIndex != 0)
-                    }
-                }
-                .offset(x: -repeatPeriod + phase * repeatPeriod)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            let font = SignaturePlayback.uiFont(
+                name: preferences.signatureFontName,
+                size: preferences.signatureFontSize
+            )
+            let viewport = max(1, proxy.size.width)
+            let segments = makeSegments(viewportWidth: viewport, font: font)
+            let total = max(0.1, segments.reduce(0) { $0 + $1.duration })
+            TimelineView(.periodic(from: .distantPast, by: 1.0 / 30.0)) { context in
+                let elapsed = context.date.timeIntervalSinceReferenceDate
+                let (segment, local) = locate(segments: segments, total: total, elapsed: elapsed)
+                let offset = offsetX(for: segment, local: local, viewportWidth: viewport)
+                Text(segment.text)
+                    .font(Font(font))
+                    .foregroundStyle(preferences.signatureColor)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .offset(x: offset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .accessibilityLabel("个性化签名：\(segment.text)")
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
         }
     }
 
-    private var cycleDuration: Double {
-        max(7, 420 / max(12, preferences.signatureSpeed))
+    /// Head at the leading edge first (`offset = 0`); then move left until the
+    /// tail reaches the trailing edge. Never starts from the tail.
+    private func offsetX(for segment: Segment, local: TimeInterval, viewportWidth: CGFloat) -> CGFloat {
+        let fits = segment.textWidth <= viewportWidth
+        if fits {
+            return (viewportWidth - segment.textWidth) / 2
+        }
+        let start: CGFloat = 0
+        let end = viewportWidth - segment.textWidth // negative — reveals toward the ending
+        if local <= segment.startHold {
+            return start
+        }
+        if local >= segment.startHold + segment.scrollDuration {
+            return end
+        }
+        let progress = (local - segment.startHold) / max(0.001, segment.scrollDuration)
+        return start + CGFloat(progress) * (end - start)
+    }
+
+    private func makeSegments(viewportWidth: CGFloat, font: UIFont) -> [Segment] {
+        let speed = max(22.0, preferences.signatureSpeed * 2.6) // points / second
+        return quotes.map { quote in
+            let body = SignaturePlayback.continuousText(for: quote)
+            let text = "“\(body)”"
+            let width = max(1, SignaturePlayback.measureWidth(text, font: font))
+            let overflow = max(0, width - viewportWidth)
+            let scroll = overflow <= 0 ? 0 : max(1.6, Double(overflow) / speed)
+            let hold: TimeInterval = overflow <= 0 ? max(2.4, 48.0 / max(12, preferences.signatureSpeed)) : 0.7
+            return Segment(
+                text: text,
+                textWidth: width,
+                startHold: hold,
+                scrollDuration: scroll,
+                endHold: hold
+            )
+        }
+    }
+
+    private func locate(
+        segments: [Segment],
+        total: TimeInterval,
+        elapsed: TimeInterval
+    ) -> (Segment, TimeInterval) {
+        guard !segments.isEmpty else {
+            return (Segment(text: "", textWidth: 1, startHold: 1, scrollDuration: 0, endHold: 0), 0)
+        }
+        var cursor = elapsed.truncatingRemainder(dividingBy: total)
+        if cursor < 0 { cursor += total }
+        for segment in segments {
+            if cursor < segment.duration {
+                return (segment, cursor)
+            }
+            cursor -= segment.duration
+        }
+        return (segments.last!, segments.last!.duration)
     }
 }
 
-/// Switches quotes using a staggered vertical-slice transition, evoking a
-/// window-blinds effect while keeping the text readable and accessible.
+/// Blinds: show one line (or prose chunk) at a time with a vertical flip.
+/// All lines of a quote finish before the next quote starts.
 private struct SignatureBlindsView: View {
     let quotes: [String]
     @ObservedObject var preferences: EditorPreferences
 
+    private struct Frame {
+        let line: String
+        let duration: TimeInterval
+        let quoteIndex: Int
+        let lineIndex: Int
+    }
+
     var body: some View {
-        TimelineView(.periodic(from: Date(), by: 0.1)) { context in
-            let slot = max(0, Int(context.date.timeIntervalSinceReferenceDate / 4))
-            let quote = quotes[slot % quotes.count]
-            HStack {
-                Text("“\(quote)”")
-                    .font(.custom(preferences.signatureFontName, size: preferences.signatureFontSize))
+        let frames = makeFrames()
+        let total = max(0.1, frames.reduce(0) { $0 + $1.duration })
+        TimelineView(.periodic(from: .distantPast, by: 0.12)) { context in
+            let elapsed = context.date.timeIntervalSinceReferenceDate
+            let frame = locate(frames: frames, total: total, elapsed: elapsed)
+            Text("“\(frame.line)”")
+                .font(.custom(preferences.signatureFontName, size: preferences.signatureFontSize))
+                .foregroundStyle(preferences.signatureColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .id("\(frame.quoteIndex)-\(frame.lineIndex)")
+                .transition(
+                    .asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    )
+                )
+                .animation(.easeInOut(duration: 0.45), value: "\(frame.quoteIndex)-\(frame.lineIndex)")
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .accessibilityLabel("个性化签名：\(frame.line)")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+    }
+
+    private func makeFrames() -> [Frame] {
+        let base = max(1.6, 52.0 / max(12, preferences.signatureSpeed))
+        var frames: [Frame] = []
+        for (quoteIndex, quote) in quotes.enumerated() {
+            let lines = SignaturePlayback.displayLines(for: quote)
+            for (lineIndex, line) in lines.enumerated() {
+                let bonus = min(2.4, Double(line.count) / 28.0)
+                frames.append(Frame(
+                    line: line,
+                    duration: base + bonus,
+                    quoteIndex: quoteIndex,
+                    lineIndex: lineIndex
+                ))
+            }
+        }
+        return frames
+    }
+
+    private func locate(frames: [Frame], total: TimeInterval, elapsed: TimeInterval) -> Frame {
+        guard !frames.isEmpty else {
+            return Frame(line: "", duration: 1, quoteIndex: 0, lineIndex: 0)
+        }
+        var cursor = elapsed.truncatingRemainder(dividingBy: total)
+        if cursor < 0 { cursor += total }
+        for frame in frames {
+            if cursor < frame.duration { return frame }
+            cursor -= frame.duration
+        }
+        return frames.last!
+    }
+}
+
+/// Typewriter: reveal character by character at fixed size. When one visual
+/// line is full, clear it and continue the remaining text from the left again
+/// (never shrink, never scroll the line sideways).
+private struct SignatureTypewriterView: View {
+    let quotes: [String]
+    @ObservedObject var preferences: EditorPreferences
+
+    private struct Segment {
+        let full: String
+        let duration: TimeInterval
+        let pause: TimeInterval
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let font = SignaturePlayback.uiFont(
+                name: preferences.signatureFontName,
+                size: preferences.signatureFontSize
+            )
+            let segments = makeSegments()
+            let total = max(0.1, segments.reduce(0) { $0 + $1.duration + $1.pause })
+            TimelineView(.periodic(from: .distantPast, by: 1.0 / 24.0)) { context in
+                let elapsed = context.date.timeIntervalSinceReferenceDate
+                let (segment, local) = locate(segments: segments, total: total, elapsed: elapsed)
+                let typingWindow = max(0.05, segment.duration)
+                let progress = min(1, max(0, local / typingWindow))
+                let count = max(0, Int(ceil(progress * Double(segment.full.count))))
+                let typed = String(segment.full.prefix(count))
+                let display = currentTypewriterLine(
+                    typed: typed,
+                    maxWidth: max(1, proxy.size.width),
+                    font: font
+                )
+                Text(display.isEmpty ? " " : display)
+                    .font(Font(font))
                     .foregroundStyle(preferences.signatureColor)
                     .lineLimit(1)
-                    .id(slot)
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .move(edge: .top).combined(with: .opacity)
-                        )
-                    )
-                    .animation(.easeInOut(duration: 0.55), value: slot)
-                    .accessibilityLabel("个性化签名：\(quote)")
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .accessibilityLabel("个性化签名：\(segment.full)")
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .clipped()
+    }
+
+    /// Pack typed characters into fixed-width lines; show only the active line
+    /// so a full line restarts from the leading edge.
+    private func currentTypewriterLine(typed: String, maxWidth: CGFloat, font: UIFont) -> String {
+        guard !typed.isEmpty else { return "" }
+        var current = ""
+        for ch in typed {
+            let trial = current + String(ch)
+            if SignaturePlayback.measureWidth(trial, font: font) <= maxWidth {
+                current = trial
+            } else {
+                current = String(ch)
+            }
+        }
+        return current
+    }
+
+    private func makeSegments() -> [Segment] {
+        let cps = max(6.0, preferences.signatureSpeed * 0.55) // characters / second
+        return quotes.map { quote in
+            let full = "“\(SignaturePlayback.continuousText(for: quote))”"
+            let duration = max(1.8, Double(max(1, full.count)) / cps)
+            return Segment(full: full, duration: duration, pause: 1.1)
+        }
+    }
+
+    private func locate(
+        segments: [Segment],
+        total: TimeInterval,
+        elapsed: TimeInterval
+    ) -> (Segment, TimeInterval) {
+        guard !segments.isEmpty else {
+            return (Segment(full: "", duration: 1, pause: 0), 0)
+        }
+        var cursor = elapsed.truncatingRemainder(dividingBy: total)
+        if cursor < 0 { cursor += total }
+        for segment in segments {
+            let span = segment.duration + segment.pause
+            if cursor < span {
+                // During pause keep showing the full text.
+                return (segment, min(cursor, segment.duration))
+            }
+            cursor -= span
+        }
+        return (segments.last!, segments.last!.duration)
     }
 }
 

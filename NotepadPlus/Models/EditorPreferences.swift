@@ -4,15 +4,52 @@ import UIKit
 enum SignatureDisplayStyle: String, CaseIterable, Identifiable {
     case marquee
     case blinds
+    case typewriter
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .marquee: "横向滚动"
-        case .blinds: "百叶窗切换"
+        case .blinds: "百叶窗（逐行）"
+        case .typewriter: "打字机"
         }
     }
+}
+
+/// One editable title-bar signature. Stable `id` keeps TextFields alive while
+/// the user adds / edits / deletes many quotes.
+struct SignatureQuote: Identifiable, Codable, Equatable, Hashable {
+    var id: UUID
+    var text: String
+
+    init(id: UUID = UUID(), text: String = "") {
+        self.id = id
+        self.text = text
+    }
+}
+
+/// Portable signature list for import / export (JSON).
+struct SignatureQuotesPackage: Codable, Equatable {
+    var formatVersion: Int
+    var app: String
+    var exportedAt: String
+    var quotes: [SignatureQuote]
+
+    static let currentFormatVersion = 1
+
+    init(quotes: [SignatureQuote], exportedAt: Date = Date()) {
+        formatVersion = Self.currentFormatVersion
+        app = "NotepadPlus"
+        let formatter = ISO8601DateFormatter()
+        self.exportedAt = formatter.string(from: exportedAt)
+        self.quotes = quotes
+    }
+}
+
+enum SignatureQuotesImportMode {
+    case replace
+    case append
 }
 
 enum AppLanguage: String, CaseIterable, Identifiable {
@@ -419,16 +456,91 @@ final class EditorPreferences: ObservableObject {
     static let editorFonts = ["Menlo", "SFMono-Regular", "Monaco", "Courier New"]
     static let signatureFonts = ["SF Pro Display", "Helvetica Neue", "Menlo", "Monaco", "Georgia"]
 
-    /// Built-in personal signatures.  They are intentionally kept as plain text so users
-    /// can replace, remove, or extend them from Preferences without changing the app.
-    static let defaultSignatureQuotes: [String] = [
-        "星星之火，可以燎原。",
-        "一切反动派都是纸老虎。",
+    /// Built-in personal signatures seeded from the author's maintained quotes.
+    static let defaultSignatureQuoteTexts: [String] = [
+        "直木成材，弯木成景，人生百态，各有归途，木以不材得终其天年，人以无为而成其有为。论才当向直中取，谋生应从曲中求。",
+        "努力是一种行动，坚持是一种态度，努力的人改变了自己，坚持的人改变了命运。知足的人懂得感恩，感恩的人懂得珍惜。想要生活好一点，努力就要多一点，想要过得快乐点，就要知足点",
         "世上无难事，只要肯登攀。",
-        "虚心使人进步，骄傲使人落后。",
-        "没有调查，没有发言权。",
-        "为人民服务。"
+        """
+        心宽一寸，路宽一丈，事缓则圆，人缓则安。
+        人生如茶，沉时坦然，浮时淡然。不争是非，方得自在，不较得失，方得圆满。以善待人，以宽处事，以静养心。日子，一半烟火，一半清欢，生活，一半争取，一半随缘。愿你眼里有光，心中有爱，行中有善，不负时光，不负自己。
+        """,
+        "你一定记住，人生路上不必凡事急于求成，顺其自然，自会遇见美好。古人讲，好事不嫌晚，后登船者先上岸。命运托举你的方式，有时会很惊喜，给你的糖可能会迟到，但从来不会少，该是你的终究会来。好事多磨终成事，只要勇敢向前，前面的路一定是繁花盛开",
+        """
+        男人的一生，有三样东西不能丢：
+        第一是男人顶天立地的骨气。
+        第二是成大事的志气。
+        第三是善待良人的良心。落魄时，不卑躬屈膝，得志时，不狂妄自大。骨气守住底线，志气指引前路，良心稳住根基。做一个顶天立地的真男人。
+        """,
+        "风雨送春归，飞雪迎春到。已是悬崖百丈冰，犹有花枝俏。俏也不争春，只把春来报。待到山花烂漫时，她在丛中笑。",
+        """
+        日出东海落西山，愁也一天，喜也一天；
+        认真过好每一天，有也心甘，无也心甘。
+        遇事不钻牛角尖，人也舒坦，心也舒坦；
+        自古万事难得圆，好也随缘，赖也随缘。
+        夫妻本是前世缘，和也是缘，吵也是缘；
+        人非圣贤哪得全，睁一只眼，闭一只眼。
+        子女上进只能劝，成也自然，败也自然；
+        儿孙之福不在爷，有也由天，无也由天。
+        少荤多素日三餐，粗也香甜，细也香甜；
+        新旧衣服不挑拣，好也御寒，赖也御寒。
+        常与知己聊聊天，古也谈谈，今也谈谈；
+        内孙外孙同样看，儿也心欢，女也心欢。
+        早晚操劳勤锻炼，忙也乐观，闲也乐观；
+        心宽体健走人间，不是神仙，胜似神仙。
+        """,
+        "我本无意惹惊鸿，奈何惊鸿入我心。城南以南不再南，城北以北不再北。春有百花秋有月，夏有凉风冬有雪。若无闲事挂心头，便是人间好时节。野花不种年年有，烦恼无根日日生。愿许秋风知我意，散我心中意难平。",
+        """
+        自出洞来无敌手，得饶人处且饶人。
+        本是青灯不归客，却因浊酒恋红尘。
+        一曲清歌满樽酒，人生何处不相逢。
+        别有幽愁暗恨生，此时无声胜有声。
+        往事不知多少梦，夜来和酒一时醒。
+        三生有幸遇见你，纵然悲凉也是情。
+        别来半岁音书绝，一寸离肠千万结。
+        万丈深渊终有底，唯有人心不可测。
+        一生负气成今日，四海无人对夕阳。
+        苍天不解人情暖，冷眼看花尽是悲。
+        人有生老三千疾，唯有相思不可医。
+        前程似锦随风散，从此天涯是路人。
+        只缘感君一回顾，使我思君朝与暮。
+        天涯地角有穷时，只有相思无尽处。
+        人间纵有千百媚，唯独你是情所钟。
+        寒灯纸上梨花雨，我等风雪又一年。
+        枝上柳绵吹又少，天涯何处无芳草。
+        缘来缘去终会散，花开花败总归尘。
+        人逢喜事精神爽，闷向心来瞌睡多。
+        一世浮生一刹那，一程山水一年华。
+        此情应是长相守，你若无心我便休。
+        渡尽劫波兄弟在，相逢一笑泯恩仇。
+        愿有岁月可回首，且以深情共白头。
+        半生风雨半生寒，一杯浊酒敬流年。
+        因过竹院逢僧话，偷得浮生半日闲。
+        纵是我心红如铁，也难融你千尺冰。
+        近水楼台先得月，向阳花木易为春。
+        酒不醉人人自醉，色不迷人人自迷。
+        君子之交淡如水，小人之交甘若醴。
+        一失足成千古恨，再回首是百年身。
+        """,
+        "儿子是我一生的骄傲，是我满心的欢喜。他人纵有万般好，不及我而一抹笑。他不必完美，不必耀眼，不必成为谁的期待，只愿他健康善良、坦荡，便是我此生最大的心愿。我的儿子是我拼尽全力也要守护的光，是我平淡岁月里最温柔的念想。愿我儿品行端正，无疾无忧，平安顺遂。",
+        """
+        人生没有如果，命运没有假设，不要尽力而为，而是全力以赴，想要不可代替，就必须与众不同！
+        人生如梦，难得一碰，一生朋友一生情，一生有你们才算赢，桌是圆的，菜是咸的，喝酒咱得先敬这请客花钱的。说是从青春到夕阳，一路走来一路忙，远去了风华正茂，迎来了两鬓自霜，愿我们在慢慢变老的路上，拥有着幸福和健康。
+        """,
+        """
+        香烟不解人生苦，烈酒不消世间愁
+        茶若醉人何须酒，唯有碎银解千愁
+        """,
+        "一根烟可以问一条路，一桌酒可以铺一条路。想成功必须要人情世故。小时候老师教我们，先说对不起，然后没关系。长大以后，社会告诉我们，如果你没关系，那只有对不起。烟搭桥，酒铺路，笑脸相迎，人情世故，色作乐，钱挡灾，慷慨送礼后门开，欲攻城池久为兵，道路难行钱作马。万丈红尘三杯酒，千秋大业一壶茶。",
+        "你去追鸡，鸡就会跑，要是你手里有把米，鸡就会跟着你，但你千万不要沾沾自喜，因为鸡喜欢的从来不是你，而是你手里的那把米，一旦你把这把米扔出去，那它的眼里就没有你。你扔向哪里，鸡就会跑向哪里，至于那个地方有没有你，鸡一点儿都不关心，你要是把它喂饱了，它就会离你而去，还会到处下蛋。所以，你只能给鸡看，不能给鸡吃。只要你手里有足够多的米，是蒸是煮都有你。所以千万不要高估你在别人心中的位置，鸡爱的是米，而不是你",
+        "初见少年拉满弓，不惧岁月不惧风。可终是东风吹醒英雄梦，生活磨平少年心。那一年的少年江湖梦，谁不曾年少轻狂，血气方刚，谁不曾克己复法，胸怀激荡，谁不曾鲜衣怒马，气宇轩昂。年少不知轻狂，总以为自己恰似人间惊鸿客，墨染星辰水云间。后来才发现，奈何人间惊鸿客，只是尘世一俗人。可能人生就是这样，得意时，一日看尽长安花，艰难时，潦倒新停浊酒杯。回首过往半生路，也不过是半生风雨半身伤，半句别恨半心凉。不禁感叹，世事大梦一场，人生几度秋凉。不禁一问，是世间难得，还是我不值？人生本就曲折，前路必定坎坷，谁不是拿最好的青春来换取最深刻的教训呢？既然注定成不了别人世界里的太阳，那就安心做自己世界里的月亮吧",
+        "连方丈都背叛了佛祖，而你却始终无法释怀，你真傻，总有一天你会发现，这个世界什么都是假的，而你却认真了一辈子。日落教你告别，大海教你包容，连天地都在循环往复，人又何必执着于非如此不可呢？",
+        "如果活着不是为了快乐，那长命百岁还有什么意义呢？在无法重来的人生里，请尽量快乐。凡事看开点儿，日子简单点儿，心头敞亮点儿，风雨由天，快乐由己。记住，首先你要快乐，其他的都是其次。",
     ]
+
+    static var defaultSignatureQuotes: [SignatureQuote] {
+        defaultSignatureQuoteTexts.map { SignatureQuote(text: $0) }
+    }
 
     @AppStorage("editor.fontSize") var fontSize = 15.0 { willSet { objectWillChange.send() } }
     @AppStorage("editor.fontName") var fontName = "Menlo" { willSet { objectWillChange.send() } }
@@ -464,9 +576,10 @@ final class EditorPreferences: ObservableObject {
     @AppStorage("personalization.signatureEnabled") var signatureEnabled = true {
         willSet { objectWillChange.send() }
     }
-    @AppStorage("personalization.signatureQuotes") private var signatureQuotesJSON = "" {
-        willSet { objectWillChange.send() }
-    }
+    /// Published list — `@AppStorage` for this JSON was not reliably refreshing
+    /// Settings on Catalyst, and legacy `[String]` storage regenerated UUIDs on
+    /// every read (breaking “新增签名” / TextField identity).
+    @Published private(set) var signatureQuotes: [SignatureQuote] = []
     @AppStorage("editor.toolbarItems") private var toolbarItemsJSON = "" {
         willSet { objectWillChange.send() }
     }
@@ -480,7 +593,7 @@ final class EditorPreferences: ObservableObject {
         .columnMode, .find, .splitEditor, .markdownPreview, .commandPalette,
         .functionList, .fileSearch, .snippets, .clipboardHistory
     ]
-    @AppStorage("personalization.signatureStyle") private var signatureStyleRaw = SignatureDisplayStyle.marquee.rawValue {
+    @AppStorage("personalization.signatureStyle") private var signatureStyleRaw = SignatureDisplayStyle.typewriter.rawValue {
         willSet { objectWillChange.send() }
     }
     @AppStorage("personalization.signatureColorHex") var signatureColorHex = "#B8C4D6" {
@@ -496,34 +609,66 @@ final class EditorPreferences: ObservableObject {
         willSet { objectWillChange.send() }
     }
 
+    private static let signatureQuotesDefaultsKey = "personalization.signatureQuotes"
+
     init() {
         if shortcutsJSON.isEmpty {
             resetShortcuts()
         }
-        // Seed the editable list once.  An explicitly empty list is preserved, so users
-        // can turn the ticker into a quiet area without the defaults being reintroduced.
-        if signatureQuotesJSON.isEmpty {
-            signatureQuotes = Self.defaultSignatureQuotes
-        }
+        loadSignatureQuotes()
         if languageRaw != AppLanguage.chinese.rawValue {
             languageRaw = AppLanguage.chinese.rawValue
         }
     }
 
-    /// User-maintained signature list shown in the document command bar.
-    var signatureQuotes: [String] {
-        get {
-            guard let data = signatureQuotesJSON.data(using: .utf8),
-                  let values = try? JSONDecoder().decode([String].self, from: data) else {
-                return []
-            }
-            return values
+    /// Non-empty texts for the title-bar ticker.
+    var activeSignatureTexts: [String] {
+        signatureQuotes
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func loadSignatureQuotes() {
+        let raw = UserDefaults.standard.string(forKey: Self.signatureQuotesDefaultsKey) ?? ""
+        // Empty key → seed defaults once. Explicit `[]` means the user cleared the list.
+        if raw.isEmpty {
+            signatureQuotes = Self.defaultSignatureQuotes
+            persistSignatureQuotes()
+            return
         }
-        set {
-            let cleaned = newValue.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            guard let data = try? JSONEncoder().encode(cleaned),
-                  let value = String(data: data, encoding: .utf8) else { return }
-            signatureQuotesJSON = value
+        guard let data = raw.data(using: .utf8) else {
+            signatureQuotes = Self.defaultSignatureQuotes
+            persistSignatureQuotes()
+            return
+        }
+        if let values = try? JSONDecoder().decode([SignatureQuote].self, from: data) {
+            signatureQuotes = values
+            return
+        }
+        // Legacy plain string array — migrate once to stable ids and rewrite disk.
+        if let legacy = try? JSONDecoder().decode([String].self, from: data) {
+            signatureQuotes = legacy.map { SignatureQuote(text: $0) }
+            persistSignatureQuotes()
+            return
+        }
+        signatureQuotes = Self.defaultSignatureQuotes
+        persistSignatureQuotes()
+    }
+
+    private func persistSignatureQuotes() {
+        guard let data = try? JSONEncoder().encode(signatureQuotes),
+              let value = String(data: data, encoding: .utf8) else { return }
+        UserDefaults.standard.set(value, forKey: Self.signatureQuotesDefaultsKey)
+    }
+
+    private func replaceSignatureQuotes(_ values: [SignatureQuote]) {
+        objectWillChange.send()
+        signatureQuotes = values
+        persistSignatureQuotes()
+        // Catalyst Form can miss a single @Published pulse when AppStorage
+        // toggles fire in the same run loop — nudge again after persistence.
+        DispatchQueue.main.async { [weak self] in
+            self?.objectWillChange.send()
         }
     }
 
@@ -565,32 +710,102 @@ final class EditorPreferences: ObservableObject {
         objectWillChange.send()
     }
 
-    func appendSignatureQuote(_ quote: String = "") {
+    @discardableResult
+    func appendSignatureQuote(_ quote: String = "") -> UUID {
         var values = signatureQuotes
-        values.append(quote)
-        signatureQuotes = values
+        let item = SignatureQuote(text: quote)
+        values.append(item)
+        replaceSignatureQuotes(values)
+        return item.id
     }
 
-    func updateSignatureQuote(at index: Int, to quote: String) {
+    func updateSignatureQuote(id: UUID, to quote: String) {
         var values = signatureQuotes
-        guard values.indices.contains(index) else { return }
-        values[index] = quote
-        signatureQuotes = values
+        guard let index = values.firstIndex(where: { $0.id == id }) else { return }
+        values[index].text = quote
+        replaceSignatureQuotes(values)
     }
 
-    func removeSignatureQuote(at index: Int) {
+    func removeSignatureQuote(id: UUID) {
         var values = signatureQuotes
-        guard values.indices.contains(index) else { return }
-        values.remove(at: index)
-        signatureQuotes = values
+        values.removeAll { $0.id == id }
+        replaceSignatureQuotes(values)
+    }
+
+    func moveSignatureQuotes(from source: IndexSet, to destination: Int) {
+        var values = signatureQuotes
+        values.move(fromOffsets: source, toOffset: destination)
+        replaceSignatureQuotes(values)
+    }
+
+    /// Move one quote up (`-1`) or down (`+1`). Returns whether the move applied.
+    @discardableResult
+    func moveSignatureQuote(id: UUID, by offset: Int) -> Bool {
+        guard offset != 0,
+              let index = signatureQuotes.firstIndex(where: { $0.id == id }) else { return false }
+        let target = index + offset
+        guard signatureQuotes.indices.contains(target) else { return false }
+        var values = signatureQuotes
+        values.swapAt(index, target)
+        replaceSignatureQuotes(values)
+        return true
     }
 
     func restoreDefaultSignatureQuotes() {
-        signatureQuotes = Self.defaultSignatureQuotes
+        replaceSignatureQuotes(Self.defaultSignatureQuotes)
+    }
+
+    func exportSignatureQuotesPackage() throws -> Data {
+        let package = SignatureQuotesPackage(quotes: signatureQuotes)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(package)
+    }
+
+    /// Import quotes from a NotepadPlus package or a plain `[SignatureQuote]` /
+    /// `[String]` JSON array. Never clears existing quotes unless `mode == .replace`.
+    @discardableResult
+    func importSignatureQuotes(from data: Data, mode: SignatureQuotesImportMode) throws -> Int {
+        let incoming = try Self.decodeSignatureQuotes(from: data)
+        guard !incoming.isEmpty else { return 0 }
+        switch mode {
+        case .replace:
+            replaceSignatureQuotes(incoming)
+        case .append:
+            var merged = signatureQuotes
+            let existingTexts = Set(merged.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) })
+            for quote in incoming {
+                let trimmed = quote.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty { continue }
+                if existingTexts.contains(trimmed) { continue }
+                merged.append(SignatureQuote(text: quote.text))
+            }
+            replaceSignatureQuotes(merged)
+        }
+        signatureEnabled = true
+        return incoming.count
+    }
+
+    private static func decodeSignatureQuotes(from data: Data) throws -> [SignatureQuote] {
+        let decoder = JSONDecoder()
+        if let package = try? decoder.decode(SignatureQuotesPackage.self, from: data) {
+            return package.quotes
+        }
+        if let values = try? decoder.decode([SignatureQuote].self, from: data) {
+            return values
+        }
+        if let legacy = try? decoder.decode([String].self, from: data) {
+            return legacy.map { SignatureQuote(text: $0) }
+        }
+        throw NSError(
+            domain: "NotepadPlus.SignatureQuotes",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "无法识别的语录文件格式"]
+        )
     }
 
     var signatureStyle: SignatureDisplayStyle {
-        get { SignatureDisplayStyle(rawValue: signatureStyleRaw) ?? .marquee }
+        get { SignatureDisplayStyle(rawValue: signatureStyleRaw) ?? .typewriter }
         set { signatureStyleRaw = newValue.rawValue }
     }
 

@@ -1120,16 +1120,32 @@ struct FloatingPanelHost<Content: View>: View {
     @Binding var isPresented: Bool
     let title: String
     var showsScrim: Bool = true
+    var initialSize: CGSize = CGSize(width: 960, height: 620)
     @ViewBuilder var content: () -> Content
 
-    @State private var panelSize = CGSize(width: 960, height: 620)
+    @State private var panelSize: CGSize
     @State private var panelOrigin = CGPoint(x: 80, y: 72)
     @State private var dragStartOrigin: CGPoint?
     @State private var resizeStartSize: CGSize?
     @State private var isInteracting = false
 
-    private let minSize = CGSize(width: 720, height: 420)
-    private let maxSize = CGSize(width: 1600, height: 1100)
+    private let minSize = CGSize(width: 640, height: 420)
+    private let maxSize = CGSize(width: 1800, height: 1200)
+
+    init(
+        isPresented: Binding<Bool>,
+        title: String,
+        showsScrim: Bool = true,
+        initialSize: CGSize = CGSize(width: 960, height: 620),
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        _isPresented = isPresented
+        self.title = title
+        self.showsScrim = showsScrim
+        self.initialSize = initialSize
+        self.content = content
+        _panelSize = State(initialValue: initialSize)
+    }
 
     var body: some View {
         GeometryReader { geo in
