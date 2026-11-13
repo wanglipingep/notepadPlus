@@ -1601,6 +1601,36 @@ struct WorkspaceSessionDocument: Codable, Equatable {
     let bookmarks: Set<Int>?
     let groupID: UUID?
     let isPinned: Bool?
+    /// nil means visible in tabs (legacy sessions).
+    let isOpenInTabs: Bool?
+
+    init(
+        id: UUID,
+        title: String,
+        scratchContent: String?,
+        path: String?,
+        securityScopedBookmark: Data?,
+        language: String?,
+        encoding: String?,
+        lineEnding: String?,
+        bookmarks: Set<Int>?,
+        groupID: UUID?,
+        isPinned: Bool?,
+        isOpenInTabs: Bool? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.scratchContent = scratchContent
+        self.path = path
+        self.securityScopedBookmark = securityScopedBookmark
+        self.language = language
+        self.encoding = encoding
+        self.lineEnding = lineEnding
+        self.bookmarks = bookmarks
+        self.groupID = groupID
+        self.isPinned = isPinned
+        self.isOpenInTabs = isOpenInTabs
+    }
 }
 
 public struct WorkspaceSessionGroup: Codable, Equatable, Sendable {

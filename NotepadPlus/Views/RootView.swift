@@ -163,6 +163,7 @@ struct RootView: View {
                 snippetsFloatingOverlay
                 clipboardFloatingOverlay
                 settingsFloatingOverlay
+                releaseNotesFloatingOverlay
             }
             #if targetEnvironment(macCatalyst)
             .background(DetailOriginReporter())
@@ -249,9 +250,6 @@ struct RootView: View {
             .sheet(isPresented: $isAboutPresented) {
                 AboutNotepadPlusView()
             }
-            .sheet(isPresented: $isReleaseNotesPresented) {
-                ReleaseNotesView()
-            }
             .sheet(isPresented: $isGoToLinePresented) {
                 if let document = workspace.activeDocument {
                     GoToLineSheet(document: document, preferences: preferences, isPresented: $isGoToLinePresented)
@@ -321,12 +319,12 @@ struct RootView: View {
                 isPresented: $showCloseConfirmation,
                 titleVisibility: .visible
             ) {
-                Button(preferences.tr("保存并关闭", "Save and Close")) {
+                Button(preferences.tr("保存并退出", "Save and Exit")) {
                     if let documentPendingClose {
                         save(documentPendingClose, closeAfterSaving: true)
                     }
                 }
-                Button(preferences.tr("不保存并关闭", "Close Without Saving"), role: .destructive) {
+                Button(preferences.tr("不保存并退出", "Exit Without Saving"), role: .destructive) {
                     if let documentPendingClose {
                         workspace.close(documentPendingClose)
                     }
@@ -342,7 +340,11 @@ struct RootView: View {
         rootWithAlerts
             .onReceive(NotificationCenter.default.publisher(for: .requestCloseDocument)) { notification in
                 guard let document = notification.object as? EditorDocument else { return }
-                requestClose(document)
+                workspace.hideFromTabs(document)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .requestExitDocument)) { notification in
+                guard let document = notification.object as? EditorDocument else { return }
+                requestExit(document)
             }
             .onReceive(NotificationCenter.default.publisher(for: .openSnippetsGlobalHotKey)) { _ in
                 openSnippetsFromGlobalHotKey()
@@ -941,6 +943,22 @@ struct RootView: View {
         }
     }
 
+    @ViewBuilder
+    private var releaseNotesFloatingOverlay: some View {
+        if isReleaseNotesPresented {
+            FloatingPanelHost(
+                isPresented: $isReleaseNotesPresented,
+                title: preferences.tr("版本更新记录", "Release Notes"),
+                initialSize: CGSize(width: 920, height: 680)
+            ) {
+                ReleaseNotesView {
+                    isReleaseNotesPresented = false
+                }
+            }
+            .zIndex(55)
+        }
+    }
+
     private func installSnippetGlobalHotKey() {
         #if targetEnvironment(macCatalyst)
         SnippetGlobalHotKey.shared.onPressed = {
@@ -1078,7 +1096,8 @@ struct RootView: View {
         case .saveAll:
             saveAllDocuments()
         case .closeActiveDocument:
-            if let document = workspace.activeDocument { requestClose(document) }
+            // Menu / ⌘W matches the tab ×：hide from tabs, keep in 文档导航.
+            if let document = workspace.activeDocument { workspace.hideFromTabs(document) }
         case .find:
             workspace.presentFindBar()
         case .replace:
@@ -1300,7 +1319,7 @@ struct RootView: View {
         }
     }
 
-    private func requestClose(_ document: EditorDocument) {
+    private func requestExit(_ document: EditorDocument) {
         if document.isDirty {
             documentPendingClose = document
             showCloseConfirmation = true
@@ -2316,7 +2335,8 @@ private struct QuickOpenView: View {
 
 private struct AboutNotepadPlusView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var isReleaseNotesPresented = false
+
+    private static let websiteURL = URL(string: "https://wanglp.cn:8081")!
 
     var body: some View {
         VStack(spacing: 14) {
@@ -2333,11 +2353,26 @@ private struct AboutNotepadPlusView: View {
                 .foregroundStyle(.secondary)
             Link("开发者：wanglipingep@126.com", destination: URL(string: "mailto:wanglipingep@126.com")!)
                 .font(.subheadline)
+            Link(Self.websiteURL.absoluteString, destination: Self.websiteURL)
+                .font(.subheadline)
+                .tint(.green)
+                .help("打开 NotepadPlus 官网")
             Text(versionText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button("查看版本更新记录") {
-                isReleaseNotesPresented = true
+            Button {
+                // Open the full-size root sheet instead of pushing into this
+                // narrow About window (which clipped the changelog).
+                dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                    NotificationCenter.default.post(
+                        name: .desktopCommand,
+                        object: DesktopCommand.showReleaseNotes
+                    )
+                }
+            } label: {
+                Text("查看版本更新记录")
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             Button("完成") { dismiss() }
@@ -2346,11 +2381,8 @@ private struct AboutNotepadPlusView: View {
                 .help("关闭关于窗口")
         }
         .padding(32)
-        .frame(width: 400, height: 390)
+        .frame(width: 440, height: 460)
         .environment(\.locale, Locale(identifier: "zh-Hans"))
-        .sheet(isPresented: $isReleaseNotesPresented) {
-            ReleaseNotesView()
-        }
     }
 
     private var versionText: String {
@@ -2361,7 +2393,7 @@ private struct AboutNotepadPlusView: View {
 }
 
 private struct ReleaseNotesView: View {
-    @Environment(\.dismiss) private var dismiss
+    var onClose: () -> Void = {}
 
     private let releases: [ReleaseNoteVersion] = {
         guard let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md"),
@@ -2378,102 +2410,97 @@ private struct ReleaseNotesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.green.gradient)
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 46, height: 46)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("版本更新记录")
-                        .font(.title2.weight(.bold))
-                    Text("了解 NotepadPlus 的新增功能、体验优化与重要修复")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
+            HStack(spacing: 10) {
+                Text("新增功能、体验优化与重要修复")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
                 if !currentVersion.isEmpty {
-                    Text("当前版本  \(currentVersion)")
+                    Text("当前 \(currentVersion)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.green)
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 6)
-                        .background(Color.green.opacity(0.11), in: Capsule())
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.green.opacity(0.12), in: Capsule())
                 }
-
-                Button("完成") { dismiss() }
+                Button("完成", action: onClose)
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
             }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 16)
-            .background(.regularMaterial)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
 
             Divider()
 
-            ScrollView {
-                if releases.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 36))
-                            .foregroundStyle(.secondary)
-                        Text("暂时无法读取版本更新内容")
-                            .font(.headline)
-                        Text("请确认 CHANGELOG.md 已包含在应用中。")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 110)
-                } else {
-                    LazyVStack(spacing: 18) {
-                        ForEach(releases) { release in
-                            releaseCard(release)
+            GeometryReader { geo in
+                let contentWidth = max(320, geo.size.width - 32)
+                ScrollView {
+                    if releases.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "doc.text.magnifyingglass")
+                                .font(.system(size: 36))
+                                .foregroundStyle(.secondary)
+                            Text("暂时无法读取版本更新内容")
+                                .font(.headline)
+                            Text("请确认 CHANGELOG.md 已包含在应用中。")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
+                        .frame(width: contentWidth)
+                        .padding(.top, 48)
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 14) {
+                            ForEach(releases) { release in
+                                releaseCard(release, width: contentWidth)
+                            }
+                        }
+                        .frame(width: contentWidth, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                     }
-                    .frame(maxWidth: 820)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 22)
-                    .frame(maxWidth: .infinity)
+                }
+                .onAppear {
+                    let report = "releaseNotesW=\(Int(geo.size.width)) releaseNotesH=\(Int(geo.size.height)) contentW=\(Int(contentWidth))"
+                    try? report.write(toFile: "/tmp/notepadplus-release-notes-layout.txt", atomically: true, encoding: .utf8)
+                }
+                .onChange(of: geo.size) { _, size in
+                    let report = "releaseNotesW=\(Int(size.width)) releaseNotesH=\(Int(size.height)) contentW=\(Int(max(320, size.width - 32)))"
+                    try? report.write(toFile: "/tmp/notepadplus-release-notes-layout.txt", atomically: true, encoding: .utf8)
                 }
             }
             .background(Color(uiColor: .secondarySystemGroupedBackground))
         }
-        .frame(minWidth: 720, idealWidth: 860, minHeight: 600, idealHeight: 720)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.locale, Locale(identifier: "zh-Hans"))
     }
 
-    private func releaseCard(_ release: ReleaseNoteVersion) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .center, spacing: 13) {
+    private func releaseCard(_ release: ReleaseNoteVersion, width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
                 Text(release.version)
                     .font(.title3.monospacedDigit().weight(.bold))
                     .foregroundStyle(release.version == currentVersion ? .white : .green)
-                    .frame(minWidth: 58, minHeight: 42)
+                    .frame(minWidth: 58, minHeight: 36)
                     .padding(.horizontal, 5)
                     .background(
                         release.version == currentVersion
                             ? Color.green
                             : Color.green.opacity(0.11),
-                        in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 7) {
+                    HStack(spacing: 6) {
                         Text("NotepadPlus \(release.version)")
                             .font(.headline)
+                            .lineLimit(1)
                         if release.version == currentVersion {
                             Text("最新")
                                 .font(.caption2.weight(.bold))
                                 .foregroundStyle(.green)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
                                 .background(Color.green.opacity(0.1), in: Capsule())
                         }
                     }
@@ -2481,56 +2508,60 @@ private struct ReleaseNotesView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Spacer()
+                Spacer(minLength: 0)
             }
 
-            VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(release.sections.enumerated()), id: \.offset) { _, section in
-                    releaseSection(section)
+                    releaseSection(section, width: width - 28)
                 }
             }
         }
-        .padding(20)
-        .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(14)
+        .frame(width: width, alignment: .leading)
+        .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(
                     release.version == currentVersion ? Color.green.opacity(0.32) : Color.secondary.opacity(0.13),
                     lineWidth: 1
                 )
         }
-        .shadow(color: .black.opacity(0.045), radius: 12, y: 4)
         .textSelection(.enabled)
     }
 
-    private func releaseSection(_ section: ReleaseNoteSection) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+    private func releaseSection(_ section: ReleaseNoteSection, width: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: sectionIcon(section.title))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.green)
-                .frame(width: 30, height: 30)
-                .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(width: 26, height: 26)
+                .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: 7) {
                 Text(section.title)
                     .font(.subheadline.weight(.semibold))
 
                 ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 9) {
+                    HStack(alignment: .top, spacing: 8) {
                         Circle()
                             .fill(Color.green.opacity(0.72))
                             .frame(width: 5, height: 5)
+                            .padding(.top, 6)
                         Text(item)
                             .font(.subheadline)
                             .foregroundStyle(.primary.opacity(0.88))
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
+                            .frame(width: max(200, width - 44), alignment: .leading)
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(13)
-        .background(Color.secondary.opacity(0.055), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(12)
+        .frame(width: width, alignment: .leading)
+        .background(Color.secondary.opacity(0.055), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func sectionIcon(_ title: String) -> String {
@@ -2539,6 +2570,7 @@ private struct ReleaseNotesView: View {
         if title.contains("预览") || title.contains("Markdown") { return "doc.richtext" }
         if title.contains("修复") || title.contains("稳定") { return "wrench.and.screwdriver" }
         if title.contains("桌面") { return "macwindow" }
+        if title.contains("签名") { return "quote.bubble" }
         return "sparkles"
     }
 }

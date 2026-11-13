@@ -285,12 +285,21 @@ final class WorkspaceStore: ObservableObject {
         return document
     }
 
+    /// Documents currently shown in the tab strip (may be a subset of `documents`).
+    var tabDocuments: [EditorDocument] {
+        documents.filter(\.isOpenInTabs)
+    }
+
     func activate(_ document: EditorDocument) {
         if let activeDocumentID, activeDocumentID != document.id {
             NotificationCenter.default.post(
                 name: .workspaceWillActivateDocument,
                 object: activeDocumentID
             )
+        }
+        // Opening from 文档导航 restores the tab.
+        if !document.isOpenInTabs {
+            document.isOpenInTabs = true
         }
         activeDocumentID = document.id
         selectedGroupID = document.groupID
@@ -299,15 +308,16 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func activateNextDocument(forward: Bool) {
+        let tabs = tabDocuments
         guard
-            documents.count > 1,
+            tabs.count > 1,
             let activeDocumentID,
-            let index = documents.firstIndex(where: { $0.id == activeDocumentID })
+            let index = tabs.firstIndex(where: { $0.id == activeDocumentID })
         else { return }
         let nextIndex = forward
-            ? (index + 1) % documents.count
-            : (index - 1 + documents.count) % documents.count
-        activate(documents[nextIndex])
+            ? (index + 1) % tabs.count
+            : (index - 1 + tabs.count) % tabs.count
+        activate(tabs[nextIndex])
     }
 
     func togglePin(_ document: EditorDocument) {
@@ -319,9 +329,27 @@ final class WorkspaceStore: ObservableObject {
         persistSession()
     }
 
+    /// Hide from the tab strip only; keep the document in 文档导航.
+    func hideFromTabs(_ document: EditorDocument) {
+        guard document.isOpenInTabs else { return }
+        document.isOpenInTabs = false
+        if activeDocumentID == document.id {
+            if let next = tabDocuments.first {
+                activate(next)
+            } else {
+                activeDocumentID = nil
+                persistSession()
+            }
+        } else {
+            persistSession()
+        }
+    }
+
     func closeUnchangedDocuments(except keptDocument: EditorDocument? = nil) {
-        let candidates = documents.filter { !$0.isDirty && $0.id != keptDocument?.id && !$0.isPinned }
-        for document in candidates { close(document) }
+        let candidates = documents.filter {
+            $0.isOpenInTabs && !$0.isDirty && $0.id != keptDocument?.id && !$0.isPinned
+        }
+        for document in candidates { hideFromTabs(document) }
     }
 
     func sortDocumentsByName() {
@@ -449,21 +477,22 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func open(url: URL, onOpen: ((EditorDocument) -> Void)? = nil) {
-        if let existing = documents.first(where: { $0.fileURL?.standardizedFileURL == url.standardizedFileURL }) {
-            existing.fileURL = url
+        let canonicalURL = URL(fileURLWithPath: WorkspaceFileIdentity.canonicalPath(for: url))
+        if let existing = documents.first(where: { WorkspaceFileIdentity.pathsMatch($0.fileURL, canonicalURL) }) {
+            existing.fileURL = canonicalURL
             retainDocumentAccess(to: url, for: existing)
+            collapseDuplicateOpenDocuments(preserving: existing.id)
             if existing.fileAccessError != nil { reload(existing) }
             activate(existing)
-            addRecentFile(url)
+            addRecentFile(canonicalURL)
             onOpen?(existing)
             return
         }
 
-        let normalizedURL = url.standardizedFileURL
-        guard !loadingFileURLs.contains(normalizedURL) else { return }
+        guard !loadingFileURLs.contains(canonicalURL) else { return }
 
         let granted = url.startAccessingSecurityScopedResource()
-        loadingFileURLs.insert(normalizedURL)
+        loadingFileURLs.insert(canonicalURL)
 
         Task { [weak self] in
             do {
@@ -476,40 +505,44 @@ final class WorkspaceStore: ObservableObject {
                     if granted { url.stopAccessingSecurityScopedResource() }
                     return
                 }
-                self.loadingFileURLs.remove(normalizedURL)
+                self.loadingFileURLs.remove(canonicalURL)
                 defer { if granted { url.stopAccessingSecurityScopedResource() } }
 
                 // The file may have been opened through a second request while
                 // the first read was in progress. Reuse the existing tab.
                 if let existing = self.documents.first(where: {
-                    $0.fileURL?.standardizedFileURL == normalizedURL
+                    WorkspaceFileIdentity.pathsMatch($0.fileURL, canonicalURL)
                 }) {
+                    existing.fileURL = canonicalURL
+                    self.collapseDuplicateOpenDocuments(preserving: existing.id)
                     self.activate(existing)
-                    self.addRecentFile(url)
+                    self.addRecentFile(canonicalURL)
+                    onOpen?(existing)
                     return
                 }
 
                 let document = EditorDocument(
-                    title: url.lastPathComponent,
+                    title: canonicalURL.lastPathComponent,
                     content: decoded.text,
-                    fileURL: url,
-                    language: SyntaxLanguage.detect(filename: url.lastPathComponent),
+                    fileURL: canonicalURL,
+                    language: SyntaxLanguage.detect(filename: canonicalURL.lastPathComponent),
                     encoding: decoded.encoding,
                     lineEnding: decoded.lineEnding
                 )
                 self.documents.append(document)
+                self.collapseDuplicateOpenDocuments(preserving: document.id)
                 self.retainDocumentAccess(to: url, for: document)
-                if self.fileAccessRecoveryURL?.standardizedFileURL == url.standardizedFileURL {
+                if WorkspaceFileIdentity.pathsMatch(self.fileAccessRecoveryURL, canonicalURL) {
                     self.fileAccessRecoveryURL = nil
                 }
                 self.activeDocumentID = document.id
                 self.updateFileSignature(for: document)
                 self.selectedGroupID = nil
-                self.addRecentFile(url)
+                self.addRecentFile(canonicalURL)
                 self.persistSession()
                 onOpen?(document)
             } catch {
-                self?.loadingFileURLs.remove(normalizedURL)
+                self?.loadingFileURLs.remove(canonicalURL)
                 if granted { url.stopAccessingSecurityScopedResource() }
                 self?.fileAccessRecoveryURL = url
                 self?.errorMessage = self?.preferences.tr(
@@ -588,17 +621,20 @@ final class WorkspaceStore: ObservableObject {
             fileAccessRecoveryURL = url
             throw error
         }
-        if document.fileURL?.standardizedFileURL != url.standardizedFileURL {
+        let canonicalURL = URL(fileURLWithPath: WorkspaceFileIdentity.canonicalPath(for: url))
+        if !WorkspaceFileIdentity.pathsMatch(document.fileURL, canonicalURL) {
             document.securityScopedBookmark = nil
         }
-        document.markSaved(at: url)
+        document.markSaved(at: canonicalURL)
         retainDocumentAccess(to: url, for: document)
         updateFileSignature(for: document)
         // Atomic replace usually bumps mtime; suppress the next poll cycles
         // so we do not prompt the user about their own save.
         suppressExternalChangeUntil[document.id] = Date().addingTimeInterval(2.5)
         scratchRecoveryStore.remove(id: document.id)
-        addRecentFile(url)
+        // Save-as onto an already-open path must not leave two nav entries.
+        collapseDuplicateOpenDocuments(preserving: document.id)
+        addRecentFile(canonicalURL)
         persistSession()
     }
 
@@ -928,14 +964,16 @@ final class WorkspaceStore: ObservableObject {
         }
         do {
             try FileManager.default.moveItem(at: oldURL, to: destination)
-            document.fileURL = destination
+            let canonicalDestination = URL(fileURLWithPath: WorkspaceFileIdentity.canonicalPath(for: destination))
+            document.fileURL = canonicalDestination
             document.securityScopedBookmark = nil
             retainDocumentAccess(to: destination, for: document)
             document.title = newName
             document.language = SyntaxLanguage.detect(filename: newName)
             updateFileSignature(for: document)
-            recentFiles.removeAll(where: { $0.standardizedFileURL == oldURL.standardizedFileURL })
-            addRecentFile(destination)
+            recentFiles.removeAll(where: { WorkspaceFileIdentity.pathsMatch($0, oldURL) })
+            collapseDuplicateOpenDocuments(preserving: document.id)
+            addRecentFile(canonicalDestination)
             persistSession()
         } catch {
             errorMessage = preferences.tr("重命名失败：\(error.localizedDescription)", "Rename failed: \(error.localizedDescription)")
@@ -1269,14 +1307,15 @@ final class WorkspaceStore: ObservableObject {
     }
 
     private func addRecentFile(_ url: URL) {
-        recentFiles.removeAll(where: { $0.standardizedFileURL == url.standardizedFileURL })
-        recentFiles.insert(url, at: 0)
+        let canonical = URL(fileURLWithPath: WorkspaceFileIdentity.canonicalPath(for: url))
+        recentFiles.removeAll(where: { WorkspaceFileIdentity.pathsMatch($0, canonical) })
+        recentFiles.insert(canonical, at: 0)
         recentFiles = Array(recentFiles.prefix(10))
         persistRecentFiles()
     }
 
     func removeRecentFile(_ url: URL) {
-        recentFiles.removeAll(where: { $0.standardizedFileURL == url.standardizedFileURL })
+        recentFiles.removeAll(where: { WorkspaceFileIdentity.pathsMatch($0, url) })
         persistRecentFiles()
     }
 
@@ -1344,6 +1383,7 @@ final class WorkspaceStore: ObservableObject {
     private func persistSession(writeRecoverySnapshots: Bool = true) {
         // A failed decode must never overwrite the only surviving session.
         guard !isSessionPersistenceBlocked else { return }
+        collapseDuplicateOpenDocuments(preserving: activeDocumentID)
         if writeRecoverySnapshots {
             for document in documents where document.fileURL == nil {
                 persistRecoverySnapshot(for: document)
@@ -1354,18 +1394,20 @@ final class WorkspaceStore: ObservableObject {
                let bookmark = securityScopedBookmark(for: url) {
                 document.securityScopedBookmark = bookmark
             }
+            let canonicalPath = document.fileURL.map { WorkspaceFileIdentity.canonicalPath(for: $0) }
             return WorkspaceSessionDocument(
                 id: document.id,
                 title: document.title,
                 scratchContent: document.fileURL == nil ? document.content : nil,
-                path: document.fileURL?.path,
+                path: canonicalPath,
                 securityScopedBookmark: document.securityScopedBookmark,
                 language: document.language.rawValue,
                 encoding: document.encoding.rawValue,
                 lineEnding: document.lineEnding.rawValue,
                 bookmarks: document.bookmarks,
                 groupID: document.groupID,
-                isPinned: document.isPinned
+                isPinned: document.isPinned,
+                isOpenInTabs: document.isOpenInTabs
             )
         }
         let session = WorkspaceSessionSnapshot(
@@ -1398,7 +1440,7 @@ final class WorkspaceStore: ObservableObject {
             documentGroups = GroupHierarchy(session.groups ?? []).groups.map {
                 DocumentGroup(id: $0.id, name: $0.name, color: DocumentGroupColor(rawValue: $0.color ?? "") ?? .green, parentID: $0.parentID)
             }
-            documents = session.documents.map { saved in
+            let restoredDocs = session.documents.map { saved -> EditorDocument in
                 if let scratch = saved.scratchContent {
                     return EditorDocument(
                         id: saved.id,
@@ -1408,6 +1450,7 @@ final class WorkspaceStore: ObservableObject {
                         bookmarks: saved.bookmarks ?? [],
                         groupID: saved.groupID,
                         isPinned: saved.isPinned ?? false,
+                        isOpenInTabs: saved.isOpenInTabs ?? true,
                         language: SyntaxLanguage(rawValue: saved.language ?? "") ?? .plainText,
                         encoding: DocumentEncoding(rawValue: saved.encoding ?? "") ?? .utf8,
                         lineEnding: LineEnding(rawValue: saved.lineEnding ?? "") ?? .lf
@@ -1415,8 +1458,9 @@ final class WorkspaceStore: ObservableObject {
                 }
 
                 // The archive validates that every entry has content or a path.
-                let url = saved.securityScopedBookmark.flatMap(resolveSecurityScopedBookmark)
+                let rawURL = saved.securityScopedBookmark.flatMap(resolveSecurityScopedBookmark)
                     ?? URL(fileURLWithPath: saved.path!)
+                let url = URL(fileURLWithPath: WorkspaceFileIdentity.canonicalPath(for: rawURL))
                 let document = EditorDocument(
                     id: saved.id,
                     title: saved.title,
@@ -1424,6 +1468,7 @@ final class WorkspaceStore: ObservableObject {
                     bookmarks: saved.bookmarks ?? [],
                     groupID: saved.groupID,
                     isPinned: saved.isPinned ?? false,
+                    isOpenInTabs: saved.isOpenInTabs ?? true,
                     language: SyntaxLanguage(rawValue: saved.language ?? "") ?? .plainText,
                     encoding: DocumentEncoding(rawValue: saved.encoding ?? "") ?? .utf8,
                     lineEnding: LineEnding(rawValue: saved.lineEnding ?? "") ?? .lf
@@ -1442,9 +1487,22 @@ final class WorkspaceStore: ObservableObject {
                 }
                 return document
             }
-            activeDocumentID = documents.contains(where: { $0.id == session.activeID })
+            let beforeCount = restoredDocs.count
+            documents = dedupeOpenDocuments(restoredDocs)
+            if documents.count != beforeCount {
+                // Persist the cleaned membership so duplicates do not return.
+                persistSession(writeRecoverySnapshots: false)
+            }
+            let restoredActive = documents.contains(where: { $0.id == session.activeID })
                 ? session.activeID
                 : documents.first?.id
+            if let restoredActive,
+               let activeDoc = documents.first(where: { $0.id == restoredActive }),
+               activeDoc.isOpenInTabs {
+                activeDocumentID = restoredActive
+            } else {
+                activeDocumentID = documents.first(where: \.isOpenInTabs)?.id ?? restoredActive
+            }
             selectedGroupID = documentGroups.contains(where: { $0.id == session.selectedGroupID })
                 ? session.selectedGroupID
                 : nil
@@ -1453,6 +1511,91 @@ final class WorkspaceStore: ObservableObject {
         restoreRecoveryDocuments()
         if activeDocumentID == nil { activeDocumentID = documents.first?.id }
         nextUntitledNumber = documents.count + 1
+    }
+
+    /// Collapse same-file duplicates in the open document list without dropping
+    /// unsaved buffers. Prefer dirty / accessible / bookmarked entries.
+    private func dedupeOpenDocuments(_ source: [EditorDocument]) -> [EditorDocument] {
+        var result: [EditorDocument] = []
+        var indexByPath: [String: Int] = [:]
+
+        for document in source {
+            guard let fileURL = document.fileURL else {
+                result.append(document)
+                continue
+            }
+            let key = WorkspaceFileIdentity.canonicalPath(for: fileURL)
+            if let existingIndex = indexByPath[key] {
+                let existing = result[existingIndex]
+                // Conflicting dirty buffers: keep both rather than silently drop edits.
+                if existing.isDirty, document.isDirty, existing.content != document.content {
+                    result.append(document)
+                    continue
+                }
+                if preferOpenDocument(document, over: existing) {
+                    result[existingIndex] = document
+                }
+            } else {
+                indexByPath[key] = result.count
+                result.append(document)
+            }
+        }
+        return result
+    }
+
+    private func preferOpenDocument(_ candidate: EditorDocument, over existing: EditorDocument) -> Bool {
+        if candidate.isDirty != existing.isDirty { return candidate.isDirty }
+        let candidateOK = candidate.fileAccessError == nil
+        let existingOK = existing.fileAccessError == nil
+        if candidateOK != existingOK { return candidateOK }
+        let candidateBookmark = candidate.securityScopedBookmark != nil
+        let existingBookmark = existing.securityScopedBookmark != nil
+        if candidateBookmark != existingBookmark { return candidateBookmark }
+        if candidate.isOpenInTabs != existing.isOpenInTabs { return candidate.isOpenInTabs }
+        return false
+    }
+
+    /// In-memory collapse used by save / persist. Never removes the preferred id.
+    private func collapseDuplicateOpenDocuments(preserving preferredID: UUID?) {
+        let before = documents.count
+        var collapsed = dedupeOpenDocuments(documents)
+        if let preferredID,
+           let preferred = documents.first(where: { $0.id == preferredID }),
+           preferred.fileURL != nil,
+           !collapsed.contains(where: { $0.id == preferredID }) {
+            // Preferred lost to another same-path entry — put it back and drop the rival.
+            let key = WorkspaceFileIdentity.canonicalPath(for: preferred.fileURL!)
+            collapsed.removeAll {
+                guard let url = $0.fileURL else { return false }
+                return WorkspaceFileIdentity.canonicalPath(for: url) == key
+            }
+            collapsed.append(preferred)
+        }
+        guard collapsed.count != before else { return }
+        let removedIDs = Set(documents.map(\.id)).subtracting(collapsed.map(\.id))
+        for id in removedIDs {
+            autosaveTasks[id]?.cancel()
+            recoveryPersistenceTasks[id]?.cancel()
+            recoveryPersistenceTasks[id] = nil
+            fileSignatures.removeValue(forKey: id)
+            suppressExternalChangeUntil.removeValue(forKey: id)
+            documentSecurityScopedURLs.removeValue(forKey: id)?.stopAccessingSecurityScopedResource()
+            documentScrollOffsets[id] = nil
+            ScrollPositionStore.shared.remove(for: id)
+            scratchRecoveryStore.remove(id: id)
+            pendingExternalFileChanges.removeAll { $0.documentID == id }
+            if externalFileChange?.documentID == id {
+                presentNextExternalFileChange()
+            }
+            if secondaryDocumentID == id {
+                secondaryDocumentID = collapsed.first(where: { $0.id != activeDocumentID })?.id
+                if secondaryDocumentID == nil { isSplitEditorPresented = false }
+            }
+        }
+        documents = collapsed
+        if let activeDocumentID, !documents.contains(where: { $0.id == activeDocumentID }) {
+            self.activeDocumentID = documents.first(where: \.isOpenInTabs)?.id ?? documents.first?.id
+        }
     }
 
     private func persistRecoverySnapshot(for document: EditorDocument) {

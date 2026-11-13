@@ -27,8 +27,20 @@ final class MarkdownPreviewTests: XCTestCase {
         XCTAssertFalse(html.contains("<script>"))
         XCTAssertTrue(html.contains("&lt;script&gt;"))
         XCTAssertTrue(html.contains("&lt;b&gt;代码&lt;/b&gt;"))
-        XCTAssertTrue(html.contains("<html class=\"system\">"))
+        XCTAssertTrue(html.contains("<html class=\"system style-github\">"))
         XCTAssertTrue(MarkdownHTMLRenderer.render(" \n", theme: "light", emptyMessage: "<空>").contains("&lt;空&gt;"))
+    }
+
+    func testPreviewStylesAreAppliedAndUnknownStyleFallsBackToGitHub() {
+        let serif = MarkdownHTMLRenderer.render("# Hi", theme: "light", style: "serif", emptyMessage: "空")
+        XCTAssertTrue(serif.contains("<html class=\"light style-serif\">"))
+        XCTAssertTrue(serif.contains("html.style-serif"))
+        let nord = MarkdownHTMLRenderer.render("# Hi", theme: "dark", style: "nord", emptyMessage: "空")
+        XCTAssertTrue(nord.contains("<html class=\"dark style-nord\">"))
+        XCTAssertTrue(nord.contains("html.style-nord"))
+        XCTAssertEqual(MarkdownPreviewStyle.allCases.count, 14)
+        let unknown = MarkdownHTMLRenderer.render("# Hi", theme: "dark", style: "not-a-style", emptyMessage: "空")
+        XCTAssertTrue(unknown.contains("<html class=\"dark style-github\">"))
     }
 
     func testViewportPositionRejectsInvalidNumbersAndClampsBounds() {

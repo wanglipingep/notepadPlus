@@ -28,6 +28,8 @@ struct CodeEditorView: UIViewRepresentable {
     let onJSONFormattingError: (String) -> Void
     var markdownScrollPosition: MarkdownScrollPosition? = nil
     var onMarkdownScroll: ((MarkdownScrollPosition) -> Void)? = nil
+    /// Used by the editor context menu checkmark for Markdown preview.
+    var isMarkdownPreviewPresented: Bool = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -1090,8 +1092,49 @@ struct CodeEditorView: UIViewRepresentable {
                     NotificationCenter.default.post(name: .desktopCommand, object: DesktopCommand.validateJSON)
                 }
             ]
+            let markdownStyleActions: [UIMenuElement] = MarkdownPreviewStyle.allCases.map { style in
+                UIAction(
+                    title: style.title,
+                    image: UIImage(systemName: style.symbolName),
+                    state: parent.preferences.markdownPreviewStyle == style ? .on : .off
+                ) { [weak self] _ in
+                    guard let self else { return }
+                    self.parent.preferences.markdownPreviewStyle = style
+                    if !self.parent.isMarkdownPreviewPresented {
+                        NotificationCenter.default.post(
+                            name: .desktopCommand,
+                            object: DesktopCommand.toggleMarkdownPreview
+                        )
+                    }
+                }
+            }
+            let markdownMenu = UIMenu(
+                title: "Markdown 预览",
+                image: UIImage(systemName: "text.document"),
+                children: [
+                    UIAction(
+                        title: parent.isMarkdownPreviewPresented ? "隐藏预览" : "显示预览",
+                        image: UIImage(systemName: parent.isMarkdownPreviewPresented
+                            ? "rectangle.righthalf.inset.filled"
+                            : "eye"),
+                        state: parent.isMarkdownPreviewPresented ? .on : .off
+                    ) { _ in
+                        NotificationCenter.default.post(
+                            name: .desktopCommand,
+                            object: DesktopCommand.toggleMarkdownPreview
+                        )
+                    },
+                    UIMenu(
+                        title: "预览风格",
+                        image: UIImage(systemName: "paintpalette"),
+                        options: .singleSelection,
+                        children: markdownStyleActions
+                    )
+                ]
+            )
             var children: [UIMenuElement] = [
                 commonTools,
+                markdownMenu,
                 UIMenu(title: "行操作", image: UIImage(systemName: "text.line.first.and.arrowtriangle.forward"), options: .displayInline, children: lineActions),
                 UIMenu(title: "JSON", image: UIImage(systemName: "curlybraces"), options: .displayInline, children: jsonPanelActions)
             ]

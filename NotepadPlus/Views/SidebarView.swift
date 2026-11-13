@@ -439,6 +439,9 @@ struct SidebarView: View {
             Button(preferences.tr("关闭", "Close")) {
                 NotificationCenter.default.post(name: .requestCloseDocument, object: document)
             }
+            Button(preferences.tr("退出", "Exit"), role: .destructive) {
+                NotificationCenter.default.post(name: .requestExitDocument, object: document)
+            }
         }
         .help(document.fileURL?.path ?? document.title)
     }

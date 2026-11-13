@@ -92,6 +92,8 @@ final class EditorDocument: ObservableObject, Identifiable {
     @Published var bookmarks: Set<Int>
     @Published var groupID: UUID?
     @Published var isPinned: Bool
+    /// When false the document stays in 文档导航 but is hidden from the tab strip.
+    @Published var isOpenInTabs: Bool
     @Published var language: SyntaxLanguage
     @Published var encoding: DocumentEncoding {
         didSet {
@@ -187,6 +189,7 @@ final class EditorDocument: ObservableObject, Identifiable {
         bookmarks: Set<Int> = [],
         groupID: UUID? = nil,
         isPinned: Bool = false,
+        isOpenInTabs: Bool = true,
         language: SyntaxLanguage? = nil,
         encoding: DocumentEncoding = .utf8,
         lineEnding: LineEnding = .lf
@@ -200,6 +203,7 @@ final class EditorDocument: ObservableObject, Identifiable {
         self.bookmarks = bookmarks
         self.groupID = groupID
         self.isPinned = isPinned
+        self.isOpenInTabs = isOpenInTabs
         self.language = language ?? SyntaxLanguage.detect(filename: title)
         self.encoding = encoding
         self.lineEnding = lineEnding

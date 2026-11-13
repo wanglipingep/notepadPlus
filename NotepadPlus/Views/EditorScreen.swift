@@ -202,7 +202,8 @@ private struct EditorPane: View {
                     document.markdownScrollPosition = position
                     NotificationCenter.default.post(name: .markdownEditorDidScroll,
                         object: MarkdownScrollRequest(documentID: document.id, position: position))
-                } : nil
+                } : nil,
+                isMarkdownPreviewPresented: workspace.isMarkdownPreviewPresented
             )
             .id(document.id)
             .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -823,6 +824,32 @@ private struct MarkdownPreviewPane: View {
                 Label(preferences.tr("Markdown 预览", "Markdown Preview"), systemImage: "eye")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                Menu {
+                    ForEach(MarkdownPreviewStyle.allCases) { style in
+                        Button {
+                            preferences.markdownPreviewStyle = style
+                        } label: {
+                            if preferences.markdownPreviewStyle == style {
+                                Label(style.title, systemImage: "checkmark")
+                            } else {
+                                Label(style.title, systemImage: style.symbolName)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "paintpalette")
+                        Text(preferences.markdownPreviewStyle.title)
+                            .lineLimit(1)
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .frame(height: 24)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .menuStyle(.borderlessButton)
+                .help(preferences.tr("预览风格", "Preview style"))
+                .accessibilityLabel(preferences.tr("预览风格", "Preview style"))
                 Spacer()
                 Button {
                     NotificationCenter.default.post(name: .markdownCopyRequested, object: previewID)
@@ -888,7 +915,7 @@ private struct MarkdownPreview: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         let coordinator = context.coordinator
         coordinator.parent = self
-        let cacheKey = "\(preferences.appearance.rawValue)|\(document.content)"
+        let cacheKey = "\(preferences.appearance.rawValue)|\(preferences.markdownPreviewStyle.rawValue)|\(document.content)"
         guard cacheKey != coordinator.lastCacheKey else { return }
         coordinator.lastCacheKey = cacheKey
         coordinator.renderWorkItem?.cancel()
@@ -899,9 +926,10 @@ private struct MarkdownPreview: UIViewRepresentable {
         case .system: theme = "system"
         default: theme = "dark"
         }
+        let style = preferences.markdownPreviewStyle.rawValue
         let emptyMessage = preferences.tr("开始输入 Markdown 后，预览会实时显示在这里。", "Start typing Markdown to see the live preview.")
         let workItem = DispatchWorkItem { [weak coordinator] in
-            let html = MarkdownHTMLRenderer.render(source, theme: theme, emptyMessage: emptyMessage)
+            let html = MarkdownHTMLRenderer.render(source, theme: theme, style: style, emptyMessage: emptyMessage)
             DispatchQueue.main.async { [weak coordinator] in
                 guard let coordinator, coordinator.lastCacheKey == cacheKey else { return }
                 coordinator.apply(html: html)
@@ -1005,7 +1033,7 @@ struct DocumentTabStrip: View {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 1) {
-                        ForEach(workspace.documents) { document in
+                        ForEach(workspace.tabDocuments) { document in
                             let groupColor = workspace.documentGroups
                                 .first(where: { $0.id == document.groupID })?
                                 .color.color ?? .gray
@@ -1016,6 +1044,7 @@ struct DocumentTabStrip: View {
                                 isActive: workspace.activeDocumentID == document.id,
                                 onSelect: { workspace.activate(document) },
                                 onClose: { NotificationCenter.default.post(name: .requestCloseDocument, object: document) },
+                                onExit: { NotificationCenter.default.post(name: .requestExitDocument, object: document) },
                                 onTogglePin: { workspace.togglePin(document) },
                                 onCloseOthers: { workspace.closeUnchangedDocuments(except: document) },
                                 onReload: { workspace.reload(document) },
@@ -1092,7 +1121,10 @@ private struct DocumentTabButton: View {
     let accent: Color
     let isActive: Bool
     let onSelect: () -> Void
+    /// Hide from the tab strip; keep the document in 文档导航.
     let onClose: () -> Void
+    /// Remove from tabs and 文档导航.
+    let onExit: () -> Void
     let onTogglePin: () -> Void
     let onCloseOthers: () -> Void
     let onReload: () -> Void
@@ -1169,6 +1201,7 @@ private struct DocumentTabButton: View {
             }
             Divider()
             Button(preferences.tr("关闭", "Close"), action: onClose)
+            Button(preferences.tr("退出", "Exit"), role: .destructive, action: onExit)
         }
     }
 
@@ -1307,5 +1340,8 @@ private struct EditorStatusBar: View {
 }
 
 extension Notification.Name {
+    /// Hide the document from the tab strip only.
     static let requestCloseDocument = Notification.Name("NotepadPlus.requestCloseDocument")
+    /// Fully remove the document from tabs and 文档导航.
+    static let requestExitDocument = Notification.Name("NotepadPlus.requestExitDocument")
 }

@@ -3,16 +3,27 @@ import Foundation
 /// Prevents data loss when the Mac Catalyst sandbox setting / storage root
 /// changes across upgrades (Container → Application Support + Preferences).
 ///
-/// Never invents data. Only copies or merges richer historical sessions into
-/// the current location, and never deletes the source copies.
+/// Upgrade contract for 文档导航:
+/// - Never delete Container or live session / recovery archives.
+/// - Live document membership is authoritative (exited files stay exited).
+/// - Source may only enrich matching ids (scratch / bookmark / group structure).
+/// - Path dedupe must not drop conflicting unsaved buffers.
 enum WorkspaceDataMigration {
-    private static let migrationFlagKey = "notepad-plus.container-migration.v1"
+    private static let migrationFlagKey = "notepad-plus.container-migration.v2"
     private static let sessionKey = "notepad-plus.session.v1"
     private static let snippetsKey = "notepad-plus.snippets.v2"
     private static let clipboardKey = "notepad-plus.clipboard-history.v1"
 
     /// Call once at process start, before `WorkspaceStore` restores the session.
     static func migrateIfNeeded(defaults: UserDefaults = .standard) {
+        // One-shot only. Re-running every launch used to re-import exited
+        // documents from the older Container archive.
+        // v2 re-runs once for installs that already completed v1, so the
+        // live-membership merge (not richness-by-doc-count) is applied; still
+        // never deletes archives or live documents.
+        if defaults.bool(forKey: migrationFlagKey) { return }
+        let legacyV1Key = "notepad-plus.container-migration.v1"
+
         let fm = FileManager.default
         let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
         let containerRoot = home
@@ -64,6 +75,7 @@ enum WorkspaceDataMigration {
         }
 
         defaults.set(true, forKey: migrationFlagKey)
+        defaults.set(true, forKey: legacyV1Key)
         defaults.synchronize()
     }
 
@@ -90,45 +102,45 @@ enum WorkspaceDataMigration {
 
         try? fm.createDirectory(at: liveDir, withIntermediateDirectories: true)
 
-        let bestSource = candidates.max(by: { richness(of: $0.1) < richness(of: $1.1) })!.1
+        let bestSource = candidates.max(by: { groupRichness(of: $0.1) < groupRichness(of: $1.1) })!.1
         let liveData = (try? Data(contentsOf: livePrimary))
             ?? defaults.data(forKey: sessionKey)
-        let liveRichness = liveData.map(richness(of:)) ?? -1
-        let sourceRichness = richness(of: bestSource)
 
-        if sourceRichness > liveRichness {
-            // Keep whatever is currently live as an extra backup before replacing.
-            if let liveData, (try? JSONDecoder().decode(WorkspaceSessionSnapshot.self, from: liveData)) != nil {
+        if let liveData {
+            // Live membership is authoritative (exited docs must stay gone).
+            // Only enrich groups / fill missing scratch on matching IDs.
+            if let merged = mergeSessions(live: liveData, source: bestSource) {
+                // Keep a stamped backup of pre-merge live for forensics.
                 let stamped = liveDir.appendingPathComponent(
                     "session.pre-container-merge-\(ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")).json"
                 )
                 try? liveData.write(to: stamped, options: .atomic)
                 try? liveData.write(to: liveBackup, options: .atomic)
                 defaults.set(liveData, forKey: sessionKey + ".backup")
+                try? merged.write(to: livePrimary, options: .atomic)
+                defaults.set(merged, forKey: sessionKey)
             }
-            try? bestSource.write(to: livePrimary, options: .atomic)
-            defaults.set(bestSource, forKey: sessionKey)
-        } else if let liveData, let merged = mergeSessions(live: liveData, source: bestSource) {
-            try? merged.write(to: livePrimary, options: .atomic)
-            defaults.set(merged, forKey: sessionKey)
-        } else if liveData == nil {
+        } else {
             try? bestSource.write(to: livePrimary, options: .atomic)
             defaults.set(bestSource, forKey: sessionKey)
         }
     }
 
-    private static func richness(of data: Data) -> Int {
+    /// Group-structure richness only — never prefer a session merely because
+    /// it lists more documents (that resurrected exited files).
+    private static func groupRichness(of data: Data) -> Int {
         guard let session = try? JSONDecoder().decode(WorkspaceSessionSnapshot.self, from: data) else {
             return -1
         }
         let groups = session.groups ?? []
         let withParent = groups.filter { $0.parentID != nil }.count
-        return session.documents.count * 10 + groups.count * 5 + withParent * 20
+        return groups.count * 5 + withParent * 20
     }
 
-    /// Union groups/documents by id; prefer entries that keep `parentID`.
-    /// Same-name siblings under the same parent are treated as one group so a
-    /// recreated「人才引进」does not duplicate the recovered Container copy.
+    /// Merge groups from source into live. Document membership follows **live**
+    /// only (source may enrich scratch/bookmark on the same id). Same-name
+    /// siblings under the same parent collapse so recovered Container groups
+    /// do not duplicate.
     private static func mergeSessions(live: Data, source: Data) -> Data? {
         guard let liveSession = try? JSONDecoder().decode(WorkspaceSessionSnapshot.self, from: live),
               let sourceSession = try? JSONDecoder().decode(WorkspaceSessionSnapshot.self, from: source)
@@ -180,35 +192,28 @@ enum WorkspaceDataMigration {
             return groupIDRemap[id] ?? id
         }
 
-        var docsByID: [UUID: WorkspaceSessionDocument] = [:]
-        for doc in liveSession.documents + sourceSession.documents {
-            let remapped = WorkspaceSessionDocument(
-                id: doc.id,
-                title: doc.title,
-                scratchContent: doc.scratchContent,
-                path: doc.path,
-                securityScopedBookmark: doc.securityScopedBookmark,
-                language: doc.language,
-                encoding: doc.encoding,
-                lineEnding: doc.lineEnding,
-                bookmarks: doc.bookmarks,
-                groupID: remapGroupID(doc.groupID),
-                isPinned: doc.isPinned
-            )
-            if docsByID[doc.id] == nil {
-                docsByID[doc.id] = remapped
-            } else if let existing = docsByID[doc.id],
-                      existing.scratchContent == nil,
-                      remapped.scratchContent != nil {
-                docsByID[doc.id] = remapped
-            }
+        let sourceByID = Dictionary(uniqueKeysWithValues: sourceSession.documents.map { ($0.id, $0) })
+        var orderedDocs: [WorkspaceSessionDocument] = []
+        for liveDoc in liveSession.documents {
+            let sourceDoc = sourceByID[liveDoc.id]
+            let enrichedScratch = liveDoc.scratchContent ?? sourceDoc?.scratchContent
+            let enrichedBookmark = liveDoc.securityScopedBookmark ?? sourceDoc?.securityScopedBookmark
+            orderedDocs.append(WorkspaceSessionDocument(
+                id: liveDoc.id,
+                title: liveDoc.title,
+                scratchContent: enrichedScratch,
+                path: liveDoc.path ?? sourceDoc?.path,
+                securityScopedBookmark: enrichedBookmark,
+                language: liveDoc.language ?? sourceDoc?.language,
+                encoding: liveDoc.encoding ?? sourceDoc?.encoding,
+                lineEnding: liveDoc.lineEnding ?? sourceDoc?.lineEnding,
+                bookmarks: liveDoc.bookmarks ?? sourceDoc?.bookmarks,
+                groupID: remapGroupID(liveDoc.groupID) ?? remapGroupID(sourceDoc?.groupID),
+                isPinned: liveDoc.isPinned ?? sourceDoc?.isPinned,
+                isOpenInTabs: liveDoc.isOpenInTabs ?? sourceDoc?.isOpenInTabs
+            ))
         }
-
-        var orderedDocs = liveSession.documents.compactMap { docsByID[$0.id] }
-        let liveIDs = Set(orderedDocs.map(\.id))
-        for doc in sourceSession.documents where !liveIDs.contains(doc.id) {
-            if let mapped = docsByID[doc.id] { orderedDocs.append(mapped) }
-        }
+        orderedDocs = WorkspaceFileIdentity.dedupeSessionDocuments(orderedDocs)
 
         var orderedGroups = (liveSession.groups ?? []).compactMap { groupsByID[$0.id] }
         var seenGroupIDs = Set(orderedGroups.map(\.id))
@@ -248,10 +253,12 @@ enum WorkspaceDataMigration {
         if let data = value as? Data {
             let existing = defaults.data(forKey: key)
             if key.hasPrefix(sessionKey) {
-                let incoming = richness(of: data)
-                let current = existing.map(richness(of:)) ?? -1
-                if incoming > current {
+                // Never replace a live session blob just because the container
+                // copy lists more documents — that resurrected exited files.
+                if existing == nil {
                     defaults.set(data, forKey: key)
+                } else if let merged = mergeSessions(live: existing!, source: data) {
+                    defaults.set(merged, forKey: key)
                 }
             } else if existing == nil || (existing?.count ?? 0) < data.count {
                 defaults.set(data, forKey: key)

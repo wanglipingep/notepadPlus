@@ -35,13 +35,13 @@ The main product is a desktop **macOS** editor built with Mac Catalyst. `Package
 - Mac Catalyst desktop window and keyboard/mouse workflow
 - Original 1024×1024 app icon
 
-## 2.9.5 安装包（Build 26）
+## 2.9.6 安装包（Build 27）
 
-下载或打开 [`NotepadPlus-2.9.5-universal.dmg`](dist/NotepadPlus-2.9.5-universal.dmg)，将 **NotepadPlus.app** 拖到 **Applications（应用程序）**，复制完成后从“应用程序”启动。
+下载或打开 [`NotepadPlus-2.9.6-universal.dmg`](dist/NotepadPlus-2.9.6-universal.dmg)，将 **NotepadPlus.app** 拖到 **Applications（应用程序）**，复制完成后从“应用程序”启动。
 
 系统要求：macOS 14.0 或更高版本，同时支持 Apple 芯片和 Intel Mac。此安装包采用本地临时签名，未进行 Apple Developer ID 公证；首次打开方式见包内“安装说明”。
 
-本次重点完善个性化签名：稳定 id 与管理页、浮动偏好面板、默认打字机与整条播完再切换，以及标题栏语录与「文档导航」对齐。完整内容见 [`版本更新记录`](NotepadPlus/CHANGELOG.md)。
+本次重点修复文档导航：退出文件不再被升级迁移拉回，同一文件不再显示多条；升级过程不丢会话与未保存缓冲。完整内容见 [`版本更新记录`](NotepadPlus/CHANGELOG.md)。
 
 旧版已覆盖且没有备份的分组无法自动重建，请保留原应用数据及系统备份。当前临时签名在后续更新后仍可能触发 macOS 重新授权；正式持续分发应使用同一 Developer ID 身份签名并公证。打包脚本会保留有效输入签名，也支持通过 `NOTEPADPLUS_CODESIGN_IDENTITY` 指定签名身份。
 

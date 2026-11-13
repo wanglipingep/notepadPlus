@@ -536,6 +536,7 @@ final class EditorPreferences: ObservableObject {
         "初见少年拉满弓，不惧岁月不惧风。可终是东风吹醒英雄梦，生活磨平少年心。那一年的少年江湖梦，谁不曾年少轻狂，血气方刚，谁不曾克己复法，胸怀激荡，谁不曾鲜衣怒马，气宇轩昂。年少不知轻狂，总以为自己恰似人间惊鸿客，墨染星辰水云间。后来才发现，奈何人间惊鸿客，只是尘世一俗人。可能人生就是这样，得意时，一日看尽长安花，艰难时，潦倒新停浊酒杯。回首过往半生路，也不过是半生风雨半身伤，半句别恨半心凉。不禁感叹，世事大梦一场，人生几度秋凉。不禁一问，是世间难得，还是我不值？人生本就曲折，前路必定坎坷，谁不是拿最好的青春来换取最深刻的教训呢？既然注定成不了别人世界里的太阳，那就安心做自己世界里的月亮吧",
         "连方丈都背叛了佛祖，而你却始终无法释怀，你真傻，总有一天你会发现，这个世界什么都是假的，而你却认真了一辈子。日落教你告别，大海教你包容，连天地都在循环往复，人又何必执着于非如此不可呢？",
         "如果活着不是为了快乐，那长命百岁还有什么意义呢？在无法重来的人生里，请尽量快乐。凡事看开点儿，日子简单点儿，心头敞亮点儿，风雨由天，快乐由己。记住，首先你要快乐，其他的都是其次。",
+        "男人一生最大的财富就是选对妻子，有一个贤惠的妻子，就算你穷困潦倒，她也能陪你东山再起。身材和漂亮这些都不重要，最重要的是这个人的人品，我们归根结底还要跟这个人的人品过一辈子。一个好的妻子可以让我们减去一半的人间疾苦。老话说得好，纵有家财万贯，不如贤妻相伴。家有贤妻旺三代，胜过良田千万顷。",
     ]
 
     static var defaultSignatureQuotes: [SignatureQuote] {
@@ -565,6 +566,9 @@ final class EditorPreferences: ObservableObject {
         willSet { objectWillChange.send() }
     }
     @AppStorage("editor.appearance") private var appearanceRaw = EditorAppearance.system.rawValue {
+        willSet { objectWillChange.send() }
+    }
+    @AppStorage("editor.markdownPreviewStyle") private var markdownPreviewStyleRaw = MarkdownPreviewStyle.github.rawValue {
         willSet { objectWillChange.send() }
     }
     @AppStorage("editor.customBackgroundHex") var customBackgroundHex = "#20242B" {
@@ -814,6 +818,11 @@ final class EditorPreferences: ObservableObject {
     var appearance: EditorAppearance {
         get { EditorAppearance(rawValue: appearanceRaw) ?? .system }
         set { appearanceRaw = newValue.rawValue }
+    }
+
+    var markdownPreviewStyle: MarkdownPreviewStyle {
+        get { MarkdownPreviewStyle(rawValue: markdownPreviewStyleRaw) ?? .github }
+        set { markdownPreviewStyleRaw = newValue.rawValue }
     }
 
     var interfaceLanguage: AppLanguage {
